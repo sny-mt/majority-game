@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Box, Fade, Grow, Typography } from '@mui/material'
 
 interface ResultAnimationProps {
@@ -9,7 +10,7 @@ interface ResultAnimationProps {
   delay?: number
 }
 
-export default function ResultAnimation({
+const ResultAnimation = memo(function ResultAnimation({
   answer,
   count,
   isWinner,
@@ -42,4 +43,6 @@ export default function ResultAnimation({
       </Box>
     </Grow>
   )
-}
+})
+
+export default ResultAnimation

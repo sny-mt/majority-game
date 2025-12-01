@@ -26,6 +26,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { sanitizeInput, validateComment } from '@/lib/utils/validation'
 import type { Room, Question, Player, Answer } from '@/types/database'
 
 export default function AnswerPage() {
@@ -254,20 +255,29 @@ export default function AnswerPage() {
     if (!answer || !prediction || hasAnswered) return
 
     try {
+      // コメントをサニタイズとバリデーション
+      const sanitizedComment = sanitizeInput(comment, 500)
+      const commentValidation = validateComment(sanitizedComment)
+
+      if (!commentValidation.valid) {
+        alert(commentValidation.error)
+        return
+      }
+
       const { error } = await supabase
         .from('answers')
         .insert({
           question_id: currentQuestion.id,
           player_id: playerId,
-          answer,
-          prediction,
-          comment: comment.trim() || null
+          answer: sanitizeInput(answer, 100),
+          prediction: sanitizeInput(prediction, 100),
+          comment: sanitizedComment || null
         })
 
       if (error) throw error
 
       setHasAnswered(true)
-      console.log('Answer, prediction and comment submitted:', { answer, prediction, comment })
+      console.log('Answer, prediction and comment submitted:', { answer, prediction, comment: sanitizedComment })
     } catch (error) {
       console.error('Error submitting answer:', error)
       alert('回答の送信に失敗しました')

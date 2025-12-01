@@ -88,35 +88,37 @@ export default function SummaryPage() {
         if (playersError) throw playersError
         setPlayers(playersData || [])
 
-        // 各質問の集計結果を取得
-        const summaries: QuestionSummary[] = []
-        for (const question of questionsData || []) {
-          const { data: answersData } = await supabase
-            .from('answers')
-            .select('*')
-            .eq('question_id', question.id)
+        // 各質問の集計結果を取得（並列化でパフォーマンス向上）
+        const summaries: QuestionSummary[] = await Promise.all(
+          (questionsData || []).map(async (question) => {
+            const { data: answersData } = await supabase
+              .from('answers')
+              .select('*')
+              .eq('question_id', question.id)
 
-          if (answersData && answersData.length > 0) {
-            const answerGroups = aggregateAnswers(
-              answersData,
-              playersData || [],
-              question.choice_a,
-              question.choice_b
-            )
+            if (answersData && answersData.length > 0) {
+              const answerGroups = aggregateAnswers(
+                answersData,
+                playersData || [],
+                question.choice_a,
+                question.choice_b
+              )
 
-            const majorityGroup = answerGroups.find(group => group.isMajority)
+              const majorityGroup = answerGroups.find(group => group.isMajority)
 
-            summaries.push({
-              questionText: question.question_text,
-              choiceA: question.choice_a,
-              choiceB: question.choice_b,
-              majorityAnswer: majorityGroup?.answer || '不明',
-              totalAnswers: answersData.length,
-              answerGroups: answerGroups,
-              answers: answersData
-            })
-          }
-        }
+              return {
+                questionText: question.question_text,
+                choiceA: question.choice_a,
+                choiceB: question.choice_b,
+                majorityAnswer: majorityGroup?.answer || '不明',
+                totalAnswers: answersData.length,
+                answerGroups: answerGroups,
+                answers: answersData
+              }
+            }
+            return null
+          })
+        ).then(results => results.filter((s): s is QuestionSummary => s !== null))
 
         setQuestionSummaries(summaries)
         setIsLoading(false)

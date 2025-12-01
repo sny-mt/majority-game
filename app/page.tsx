@@ -8,6 +8,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import HistoryIcon from '@mui/icons-material/History'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { sanitizeInput, validateRoomName, validateQuestionText, validateChoice } from '@/lib/utils/validation'
 
 interface QuestionInput {
   questionText: string
@@ -155,11 +156,51 @@ export default function Home() {
       // プレイヤーIDを取得または生成
       const hostPlayerId = getOrCreatePlayerId()
 
+      // ルーム名をバリデーションとサニタイズ
+      const sanitizedRoomName = sanitizeInput(roomName, 100) || 'マジョリティゲーム'
+      const roomNameValidation = validateRoomName(sanitizedRoomName)
+      if (!roomNameValidation.valid && roomName.trim()) {
+        throw new Error(roomNameValidation.error)
+      }
+
+      // 質問をバリデーションとサニタイズ
+      const validatedQuestions: Array<{ questionText: string; choiceA: string; choiceB: string }> = []
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i]
+
+        // 各フィールドをサニタイズ
+        const sanitizedQuestion = sanitizeInput(q.questionText, 500)
+        const sanitizedChoiceA = sanitizeInput(q.choiceA, 100)
+        const sanitizedChoiceB = sanitizeInput(q.choiceB, 100)
+
+        // バリデーション
+        const questionValidation = validateQuestionText(sanitizedQuestion)
+        if (!questionValidation.valid) {
+          throw new Error(`質問${i + 1}: ${questionValidation.error}`)
+        }
+
+        const choiceAValidation = validateChoice(sanitizedChoiceA)
+        if (!choiceAValidation.valid) {
+          throw new Error(`質問${i + 1}の選択肢A: ${choiceAValidation.error}`)
+        }
+
+        const choiceBValidation = validateChoice(sanitizedChoiceB)
+        if (!choiceBValidation.valid) {
+          throw new Error(`質問${i + 1}の選択肢B: ${choiceBValidation.error}`)
+        }
+
+        validatedQuestions.push({
+          questionText: sanitizedQuestion,
+          choiceA: sanitizedChoiceA,
+          choiceB: sanitizedChoiceB
+        })
+      }
+
       // ルームを作成
       const { data: room, error: roomError } = await supabase
         .from('rooms')
         .insert({
-          room_name: roomName.trim() || 'マジョリティゲーム',
+          room_name: sanitizedRoomName,
           status: 'waiting',
           current_question_index: 0,
           host_player_id: hostPlayerId
@@ -170,7 +211,7 @@ export default function Home() {
       if (roomError) throw roomError
 
       // 質問を作成
-      const questionsData = questions.map((q, index) => ({
+      const questionsData = validatedQuestions.map((q, index) => ({
         room_id: room.id,
         question_text: q.questionText,
         choice_a: q.choiceA,

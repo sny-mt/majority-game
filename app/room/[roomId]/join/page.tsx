@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Container, TextField, Button, Typography, Box, Paper, CircularProgress } from '@mui/material'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { sanitizeInput, validateNickname } from '@/lib/utils/validation'
 
 export default function JoinPage() {
   const params = useParams()
@@ -40,6 +41,14 @@ export default function JoinPage() {
     setError('')
 
     try {
+      // ニックネームをサニタイズとバリデーション
+      const sanitizedNickname = sanitizeInput(nickname, 50)
+      const nicknameValidation = validateNickname(sanitizedNickname)
+
+      if (!nicknameValidation.valid) {
+        throw new Error(nicknameValidation.error)
+      }
+
       // プレイヤーIDを取得または生成
       const playerId = getOrCreatePlayerId()
 
@@ -63,7 +72,7 @@ export default function JoinPage() {
         .upsert({
           id: playerId,
           room_id: roomId,
-          nickname: nickname.trim(),
+          nickname: sanitizedNickname,
           is_host: false,
           score: 0
         }, {
