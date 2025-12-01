@@ -14,10 +14,16 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  Divider
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  Collapse
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import PeopleIcon from '@mui/icons-material/People'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import type { Room, Question, Player, Answer } from '@/types/database'
@@ -29,6 +35,7 @@ export default function AnswerPage() {
 
   const [room, setRoom] = useState<Room | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
+  const [allQuestions, setAllQuestions] = useState<Question[]>([])
   const [selectedChoice, setSelectedChoice] = useState<string>('')
   const [freeText, setFreeText] = useState('')
   const [selectedPrediction, setSelectedPrediction] = useState<string>('')
@@ -36,12 +43,18 @@ export default function AnswerPage() {
   const [comment, setComment] = useState('')
   const [hasAnswered, setHasAnswered] = useState(false)
 
+  // 自分の回答データ
+  const [myAnswer, setMyAnswer] = useState<string>('')
+  const [myPrediction, setMyPrediction] = useState<string>('')
+  const [myComment, setMyComment] = useState<string>('')
+
   // リアルタイム状態
   const [totalPlayers, setTotalPlayers] = useState(0)
   const [answeredCount, setAnsweredCount] = useState(0)
   const [isHost, setIsHost] = useState(false)
   const [playerId, setPlayerId] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
+  const [showQuestionList, setShowQuestionList] = useState(false)
 
   useEffect(() => {
     const initializeRoom = async () => {
@@ -74,15 +87,30 @@ export default function AnswerPage() {
         if (questionError) throw questionError
         setCurrentQuestion(questionData)
 
+        // 全ての質問を取得
+        const { data: allQuestionsData, error: allQuestionsError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('room_id', roomId)
+          .order('order_index', { ascending: true })
+
+        if (allQuestionsError) throw allQuestionsError
+        setAllQuestions(allQuestionsData || [])
+
         // 自分が既に回答しているかチェック
         const { data: answerData } = await supabase
           .from('answers')
           .select('*')
           .eq('question_id', questionData.id)
           .eq('player_id', pid)
-          .single()
+          .maybeSingle()
 
-        setHasAnswered(!!answerData)
+        if (answerData) {
+          setHasAnswered(true)
+          setMyAnswer(answerData.answer)
+          setMyPrediction(answerData.prediction || '')
+          setMyComment(answerData.comment || '')
+        }
 
         // プレイヤー数を取得
         await fetchPlayerCount()
@@ -320,6 +348,68 @@ export default function AnswerPage() {
           {currentQuestion.question_text}
         </Typography>
       </Box>
+
+      {/* 質問一覧 */}
+      <Paper elevation={2} sx={{ mb: 3 }}>
+        <Box
+          sx={{
+            p: 2,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            '&:hover': { bgcolor: 'action.hover' }
+          }}
+          onClick={() => setShowQuestionList(!showQuestionList)}
+        >
+          <Typography variant="subtitle1" fontWeight="bold">
+            問題一覧 ({allQuestions.length}問)
+          </Typography>
+          {showQuestionList ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        </Box>
+        <Collapse in={showQuestionList}>
+          <Divider />
+          <List sx={{ py: 0 }}>
+            {allQuestions.map((question, index) => {
+              const isCurrent = question.id === currentQuestion.id
+              const isPast = index < (room.current_question_index)
+
+              return (
+                <ListItem
+                  key={question.id}
+                  sx={{
+                    bgcolor: isCurrent ? 'primary.light' : isPast ? 'action.hover' : 'background.paper',
+                    borderLeft: isCurrent ? 4 : 0,
+                    borderColor: 'primary.main',
+                    opacity: isPast ? 0.7 : 1
+                  }}
+                >
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" fontWeight={isCurrent ? 'bold' : 'normal'}>
+                          Q{index + 1}
+                        </Typography>
+                        {isCurrent && (
+                          <Chip label="回答中" color="primary" size="small" />
+                        )}
+                        {isPast && (
+                          <Chip label="終了" size="small" />
+                        )}
+                      </Box>
+                    }
+                    secondary={
+                      <Typography variant="body2" color="text.secondary">
+                        {question.question_text}
+                      </Typography>
+                    }
+                  />
+                </ListItem>
+              )
+            })}
+          </List>
+        </Collapse>
+      </Paper>
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         {hasAnswered ? (

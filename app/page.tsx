@@ -22,6 +22,12 @@ interface PastRoom {
   question_count: number
 }
 
+interface ActiveRoom {
+  id: string
+  room_name: string
+  status: string
+}
+
 export default function Home() {
   const router = useRouter()
   const [roomName, setRoomName] = useState('')
@@ -33,17 +39,37 @@ export default function Home() {
   const [error, setError] = useState('')
   const [pastRooms, setPastRooms] = useState<PastRoom[]>([])
   const [isLoadingPastRooms, setIsLoadingPastRooms] = useState(true)
+  const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null)
 
   useEffect(() => {
     const loadPastRooms = async () => {
       try {
-        const hostPlayerId = getOrCreatePlayerId()
+        const playerId = getOrCreatePlayerId()
+
+        // 進行中のルームをチェック（自分が参加しているルームで、waiting/finished以外）
+        const { data: playerData } = await supabase
+          .from('players')
+          .select('room_id')
+          .eq('id', playerId)
+          .single()
+
+        if (playerData) {
+          const { data: roomData } = await supabase
+            .from('rooms')
+            .select('id, room_name, status')
+            .eq('id', playerData.room_id)
+            .single()
+
+          if (roomData && roomData.status !== 'waiting' && roomData.status !== 'finished') {
+            setActiveRoom(roomData)
+          }
+        }
 
         // このホストが過去に作成したルームを取得（最新5件、質問数も取得）
         const { data: roomsData, error: roomsError } = await supabase
           .from('rooms')
           .select('id, room_name, created_at')
-          .eq('host_player_id', hostPlayerId)
+          .eq('host_player_id', playerId)
           .order('created_at', { ascending: false })
           .limit(5)
 
@@ -190,6 +216,17 @@ export default function Home() {
     q.questionText.trim() && q.choiceA.trim() && q.choiceB.trim()
   )
 
+  const handleRejoinRoom = () => {
+    if (!activeRoom) return
+
+    // ステータスに応じて適切なページに遷移
+    if (activeRoom.status === 'answering') {
+      router.push(`/room/${activeRoom.id}/answer`)
+    } else if (activeRoom.status === 'showing_result') {
+      router.push(`/room/${activeRoom.id}/result`)
+    }
+  }
+
   return (
     <Container maxWidth="sm" sx={{ pb: 4 }}>
       <Box sx={{ mt: 4, mb: 3 }}>
@@ -200,6 +237,28 @@ export default function Home() {
           主催者：お題を入力してルームを作成
         </Typography>
       </Box>
+
+      {/* 進行中のルームに戻る */}
+      {activeRoom && (
+        <Paper elevation={3} sx={{ p: 3, mb: 3, bgcolor: 'warning.light', border: 2, borderColor: 'warning.main' }}>
+          <Typography variant="h6" gutterBottom fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            ⚠️ 進行中のルームがあります
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {activeRoom.room_name}
+          </Typography>
+          <Button
+            fullWidth
+            variant="contained"
+            color="warning"
+            size="large"
+            onClick={handleRejoinRoom}
+            sx={{ py: 1.5 }}
+          >
+            ルームに戻る
+          </Button>
+        </Paper>
+      )}
 
       {/* 過去のルーム */}
       {pastRooms.length > 0 && (

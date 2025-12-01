@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(taskkill:*)",
+      "Bash(if exist \".next\\dev\\lock\" del \".next\\dev\\lock\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

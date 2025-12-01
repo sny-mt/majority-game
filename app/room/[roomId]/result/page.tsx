@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Container, Typography, Box, Paper, Button, CircularProgress, Chip, Dialog, DialogTitle, DialogContent, IconButton } from '@mui/material'
+import { Container, Typography, Box, Paper, Button, CircularProgress, Chip, Dialog, DialogTitle, DialogContent, IconButton, Snackbar, Alert } from '@mui/material'
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
 import CloseIcon from '@mui/icons-material/Close'
 import ResultAnimation from '@/components/ResultAnimation'
@@ -35,6 +35,8 @@ export default function ResultPage() {
   const [currentPlayerCorrect, setCurrentPlayerCorrect] = useState(false)
   const [selectedComment, setSelectedComment] = useState<{ playerName: string; comment: string } | null>(null)
   const [playerId, setPlayerId] = useState<string>('')
+  const [showTransitionSnackbar, setShowTransitionSnackbar] = useState(false)
+  const [countdown, setCountdown] = useState(3)
 
   useEffect(() => {
     const initializeResult = async () => {
@@ -318,7 +320,19 @@ export default function ResultPage() {
 
           // ステータスが'answering'に戻ったら回答ページへ
           if (updatedRoom.status === 'answering') {
-            router.push(`/room/${roomId}/answer`)
+            // 主催者は即座に遷移
+            if (isHost) {
+              router.push(`/room/${roomId}/answer`)
+            } else {
+              // 参加者は3秒後に遷移
+              setShowTransitionSnackbar(true)
+              setCountdown(3)
+            }
+          }
+
+          // ステータスが'finished'になったらサマリーページへ
+          if (updatedRoom.status === 'finished') {
+            router.push(`/room/${roomId}/summary`)
           }
         }
       )
@@ -327,7 +341,22 @@ export default function ResultPage() {
     return () => {
       roomChannel.unsubscribe()
     }
-  }, [room, roomId, router])
+  }, [room, roomId, router, isHost])
+
+  // カウントダウンと自動遷移
+  useEffect(() => {
+    if (!showTransitionSnackbar) return
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    } else {
+      // カウントダウン終了後、遷移
+      router.push(`/room/${roomId}/answer`)
+    }
+  }, [showTransitionSnackbar, countdown, router, roomId])
 
   const handleNextQuestion = async () => {
     if (!isHost || !room) return
@@ -365,8 +394,7 @@ export default function ResultPage() {
       if (error) throw error
 
       console.log('Game finished')
-      // TODO: 全問題の結果を表示するページへ遷移
-      alert('ゲームを終了しました')
+      router.push(`/room/${roomId}/summary`)
     } catch (error) {
       console.error('Error finishing game:', error)
       alert('ゲーム終了に失敗しました')
@@ -653,6 +681,19 @@ export default function ResultPage() {
         })}
       </Paper>
 
+      {/* これまでの結果を見るボタン */}
+      {room.current_question_index > 0 && (
+        <Button
+          fullWidth
+          variant="outlined"
+          size="large"
+          onClick={() => router.push(`/room/${roomId}/summary`)}
+          sx={{ mb: 2, py: 1.5 }}
+        >
+          📊 これまでの結果を見る
+        </Button>
+      )}
+
       {/* 主催者用コントロール */}
       {isHost && (
         <Paper elevation={3} sx={{ p: 3, bgcolor: 'warning.light' }}>
@@ -733,6 +774,17 @@ export default function ResultPage() {
           </Paper>
         </DialogContent>
       </Dialog>
+
+      {/* 次の問題への遷移スナックバー */}
+      <Snackbar
+        open={showTransitionSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: 8 }}
+      >
+        <Alert severity="info" sx={{ width: '100%', fontSize: '1.1rem' }}>
+          {countdown}秒後に次の問題に移動します...
+        </Alert>
+      </Snackbar>
     </Container>
   )
 }
