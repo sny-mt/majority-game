@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Container,
   Button,
@@ -32,11 +32,14 @@ import type { Room, Question, Player, Answer } from '@/types/database'
 export default function AnswerPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const roomId = params.roomId as string
 
   const [room, setRoom] = useState<Room | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [allQuestions, setAllQuestions] = useState<Question[]>([])
+  const [viewQuestionIndex, setViewQuestionIndex] = useState<number | null>(null) // 表示中の質問インデックス
+  const [isLateAnswer, setIsLateAnswer] = useState(false) // 遅れての回答（参考記録）かどうか
   const [selectedChoice, setSelectedChoice] = useState<string>('')
   const [freeText, setFreeText] = useState('')
   const [selectedPrediction, setSelectedPrediction] = useState<string>('')
@@ -77,12 +80,21 @@ export default function AnswerPage() {
         // 主催者かチェック
         setIsHost(roomData.host_player_id === pid)
 
-        // 現在の質問を取得
+        // 表示する質問のインデックスを決定（クエリパラメータまたは現在のインデックス）
+        const questionParam = searchParams.get('question')
+        const targetQuestionIndex = questionParam ? parseInt(questionParam) : roomData.current_question_index
+        setViewQuestionIndex(targetQuestionIndex)
+
+        // 過去の問題かどうかを判定（現在進行中の問題より前の場合）
+        const isPastQuestion = targetQuestionIndex < roomData.current_question_index
+        setIsLateAnswer(isPastQuestion)
+
+        // 指定された質問を取得
         const { data: questionData, error: questionError } = await supabase
           .from('questions')
           .select('*')
           .eq('room_id', roomId)
-          .eq('order_index', roomData.current_question_index)
+          .eq('order_index', targetQuestionIndex)
           .single()
 
         if (questionError) throw questionError
@@ -251,8 +263,9 @@ export default function AnswerPage() {
     if (!currentQuestion) return
 
     const answer = freeText.trim() || selectedChoice
-    const prediction = predictionText.trim() || selectedPrediction
-    if (!answer || !prediction || hasAnswered) return
+    // 遅れての回答の場合、予想は不要（マジョリティが既に分かっているため）
+    const prediction = isLateAnswer ? '' : (predictionText.trim() || selectedPrediction)
+    if (!answer || (!isLateAnswer && !prediction) || hasAnswered) return
 
     try {
       // コメントをサニタイズとバリデーション
@@ -270,14 +283,15 @@ export default function AnswerPage() {
           question_id: currentQuestion.id,
           player_id: playerId,
           answer: sanitizeInput(answer, 100),
-          prediction: sanitizeInput(prediction, 100),
-          comment: sanitizedComment || null
+          prediction: isLateAnswer ? null : sanitizeInput(prediction, 100),
+          comment: sanitizedComment || null,
+          is_late_answer: isLateAnswer
         })
 
       if (error) throw error
 
       setHasAnswered(true)
-      console.log('Answer, prediction and comment submitted:', { answer, prediction, comment: sanitizedComment })
+      console.log('Answer submitted:', { answer, prediction, comment: sanitizedComment, isLateAnswer })
     } catch (error) {
       console.error('Error submitting answer:', error)
       alert('回答の送信に失敗しました')
@@ -303,8 +317,9 @@ export default function AnswerPage() {
     }
   }
 
+  // 遅れての回答の場合、予想は不要（マジョリティが既に分かっているため）
   const isAnswerValid = (selectedChoice !== '' || freeText.trim() !== '') &&
-                        (selectedPrediction !== '' || predictionText.trim() !== '') &&
+                        (isLateAnswer || selectedPrediction !== '' || predictionText.trim() !== '') &&
                         !hasAnswered
   const allPlayersAnswered = totalPlayers > 0 && answeredCount === totalPlayers
 
@@ -422,10 +437,43 @@ export default function AnswerPage() {
       </Paper>
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-        {hasAnswered ? (
-          <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 2 }}>
-            回答済みです。他の参加者の回答を待っています...
+        {isLateAnswer && !hasAnswered && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" fontWeight="bold">
+              📝 参考記録として回答
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              この問題は既に終了しています。回答はあなたの意見の記録として残りますが、ポイントは加算されません。
+            </Typography>
           </Alert>
+        )}
+        {hasAnswered ? (
+          <Box>
+            <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 2 }}>
+              {isLateAnswer ? '参考記録として回答済みです' : '回答済みです。他の参加者の回答を待っています...'}
+            </Alert>
+            <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+              {room?.status === 'showing_result' && (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  fullWidth
+                  onClick={() => router.push(`/room/${roomId}/result`)}
+                >
+                  📊 この問題の結果を見る
+                </Button>
+              )}
+              {room && room.current_question_index > 0 && (
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={() => router.push(`/room/${roomId}/summary`)}
+                >
+                  📚 全ての結果を見る
+                </Button>
+              )}
+            </Box>
+          </Box>
         ) : (
           <>
             <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
@@ -480,64 +528,70 @@ export default function AnswerPage() {
               sx={{ mb: 4 }}
             />
 
-            <Divider sx={{ my: 3 }} />
+            {!isLateAnswer && (
+              <>
+                <Divider sx={{ my: 3 }} />
 
-            <Typography variant="h6" gutterBottom sx={{ color: 'secondary.main', fontWeight: 'bold' }}>
-              多数派の予想
-            </Typography>
-            <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
-              多数派が選ぶ答えを予想してください（予想が当たると+10ポイント）
-            </Typography>
-            <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-              選択肢から選ぶ
-            </Typography>
-            <ToggleButtonGroup
-              value={selectedPrediction}
-              exclusive
-              onChange={handlePredictionChange}
-              fullWidth
-              orientation="vertical"
-              sx={{ mb: 2 }}
-            >
-              <ToggleButton
-                value="A"
-                disabled={hasAnswered}
-                sx={{
-                  py: 2,
-                  fontSize: '1.1rem',
-                  justifyContent: 'flex-start',
-                  textTransform: 'none'
-                }}
-              >
-                A: {currentQuestion.choice_a}
-              </ToggleButton>
-              <ToggleButton
-                value="B"
-                disabled={hasAnswered}
-                sx={{
-                  py: 2,
-                  fontSize: '1.1rem',
-                  justifyContent: 'flex-start',
-                  textTransform: 'none'
-                }}
-              >
-                B: {currentQuestion.choice_b}
-              </ToggleButton>
-            </ToggleButtonGroup>
+                <Typography variant="h6" gutterBottom sx={{ color: 'secondary.main', fontWeight: 'bold' }}>
+                  多数派の予想
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+                  多数派が選ぶ答えを予想してください（予想が当たると+10ポイント）
+                </Typography>
+                <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+                  選択肢から選ぶ
+                </Typography>
+                <ToggleButtonGroup
+                  value={selectedPrediction}
+                  exclusive
+                  onChange={handlePredictionChange}
+                  fullWidth
+                  orientation="vertical"
+                  sx={{ mb: 2 }}
+                >
+                  <ToggleButton
+                    value="A"
+                    disabled={hasAnswered}
+                    sx={{
+                      py: 2,
+                      fontSize: '1.1rem',
+                      justifyContent: 'flex-start',
+                      textTransform: 'none'
+                    }}
+                  >
+                    A: {currentQuestion.choice_a}
+                  </ToggleButton>
+                  <ToggleButton
+                    value="B"
+                    disabled={hasAnswered}
+                    sx={{
+                      py: 2,
+                      fontSize: '1.1rem',
+                      justifyContent: 'flex-start',
+                      textTransform: 'none'
+                    }}
+                  >
+                    B: {currentQuestion.choice_b}
+                  </ToggleButton>
+                </ToggleButtonGroup>
 
-            <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-              または自由に記述
-            </Typography>
-            <TextField
-              fullWidth
-              placeholder="多数派の予想を入力"
-              value={predictionText}
-              onChange={(e) => handlePredictionTextChange(e.target.value)}
-              disabled={hasAnswered}
-              sx={{ mb: 3 }}
-            />
+                <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+                  または自由に記述
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="多数派の予想を入力"
+                  value={predictionText}
+                  onChange={(e) => handlePredictionTextChange(e.target.value)}
+                  disabled={hasAnswered}
+                  sx={{ mb: 3 }}
+                />
 
-            <Divider sx={{ my: 3 }} />
+                <Divider sx={{ my: 3 }} />
+              </>
+            )}
+
+            {!isLateAnswer && <Divider sx={{ my: 3 }} />}
 
             <Typography variant="h6" gutterBottom sx={{ color: 'text.secondary', fontWeight: 'bold' }}>
               💬 コメント（任意）
@@ -564,7 +618,7 @@ export default function AnswerPage() {
               disabled={!isAnswerValid}
               sx={{ py: 1.5 }}
             >
-              回答する
+              {isLateAnswer ? '参考記録として回答する' : '回答する'}
             </Button>
           </>
         )}

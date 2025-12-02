@@ -29,6 +29,8 @@ import { aggregateAnswers, type AnswerGroup } from '@/lib/utils/aggregation'
 import type { Room, Question, Player, Answer } from '@/types/database'
 
 interface QuestionSummary {
+  questionId: string
+  questionIndex: number
   questionText: string
   choiceA: string
   choiceB: string
@@ -78,19 +80,20 @@ export default function SummaryPage() {
         if (questionsError) throw questionsError
         setQuestions(questionsData || [])
 
-        // プレイヤー情報を取得
+        // プレイヤー情報を取得（スコア降順、同点の場合は参加日時昇順）
         const { data: playersData, error: playersError } = await supabase
           .from('players')
           .select('*')
           .eq('room_id', roomId)
           .order('score', { ascending: false })
+          .order('joined_at', { ascending: true })
 
         if (playersError) throw playersError
         setPlayers(playersData || [])
 
         // 各質問の集計結果を取得（並列化でパフォーマンス向上）
         const summaries: QuestionSummary[] = await Promise.all(
-          (questionsData || []).map(async (question) => {
+          (questionsData || []).map(async (question, index) => {
             const { data: answersData } = await supabase
               .from('answers')
               .select('*')
@@ -107,6 +110,8 @@ export default function SummaryPage() {
               const majorityGroup = answerGroups.find(group => group.isMajority)
 
               return {
+                questionId: question.id,
+                questionIndex: question.order_index,
                 questionText: question.question_text,
                 choiceA: question.choice_a,
                 choiceB: question.choice_b,
@@ -130,6 +135,37 @@ export default function SummaryPage() {
 
     initializeSummary()
   }, [roomId])
+
+  // Realtime購読: ルームステータスの変更を監視
+  useEffect(() => {
+    if (!room) return
+
+    const roomChannel = supabase
+      .channel(`room_summary:${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rooms',
+          filter: `id=eq.${roomId}`
+        },
+        (payload) => {
+          const updatedRoom = payload.new as Room
+          setRoom(updatedRoom)
+
+          // ステータスが'answering'に変わったら回答ページへ自動遷移
+          if (updatedRoom.status === 'answering') {
+            router.push(`/room/${roomId}/answer`)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      roomChannel.unsubscribe()
+    }
+  }, [room, roomId, router])
 
   const handlePlayerClick = (playerName: string, playerId: string, answers: Answer[]) => {
     const answer = answers.find(a => a.player_id === playerId)
@@ -167,8 +203,11 @@ export default function SummaryPage() {
     )
   }
 
-  const winner = players[0]
-  const isCurrentPlayerWinner = winner && winner.id === playerId
+  // 最高得点を取得
+  const topScore = players.length > 0 ? players[0].score : 0
+  // 最高得点のプレイヤー全員を取得（同率1位対応）
+  const winners = players.filter(p => p.score === topScore)
+  const isCurrentPlayerWinner = winners.some(w => w.id === playerId)
 
   return (
     <Container maxWidth="md" sx={{ pb: 4 }}>
@@ -179,7 +218,7 @@ export default function SummaryPage() {
       </Box>
 
       {/* 優勝者 */}
-      {room.status === 'finished' && winner && (
+      {room.status === 'finished' && winners.length > 0 && (
         <Paper
           elevation={6}
           sx={{
@@ -191,14 +230,20 @@ export default function SummaryPage() {
         >
           <EmojiEventsIcon sx={{ fontSize: 80, color: 'warning.dark', mb: 2 }} />
           <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
-            優勝
+            {winners.length > 1 ? '同率優勝' : '優勝'}
           </Typography>
-          <Typography variant="h3" sx={{ fontWeight: 'bold', mb: 2 }}>
-            {winner.nickname}
-            {isCurrentPlayerWinner && ' 🎊'}
-          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 2, mb: 2 }}>
+            {winners.map((winner, index) => (
+              <Box key={winner.id}>
+                <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
+                  {winner.nickname}
+                  {winner.id === playerId && ' 🎊'}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
           <Typography variant="h5">
-            {winner.score}ポイント
+            {topScore}ポイント
           </Typography>
           {isCurrentPlayerWinner && (
             <Typography variant="h6" sx={{ mt: 2, color: 'warning.dark' }}>
@@ -215,9 +260,26 @@ export default function SummaryPage() {
         </Typography>
         {players.map((player, index) => {
           const isCurrentPlayer = player.id === playerId
-          const isFirstPlace = index === 0
-          const isSecondPlace = index === 1
-          const isThirdPlace = index === 2
+
+          // 同点を考慮した順位計算
+          let rank = 1
+          for (let i = 0; i < index; i++) {
+            if (players[i].score > player.score) {
+              rank++
+            }
+          }
+
+          // デバッグ用ログ
+          if (index === 0) {
+            console.log('=== 順位計算デバッグ ===')
+            players.forEach((p, i) => {
+              console.log(`${i}: ${p.nickname} - ${p.score}点`)
+            })
+          }
+
+          const isFirstPlace = rank === 1
+          const isSecondPlace = rank === 2
+          const isThirdPlace = rank === 3
 
           return (
             <Box
@@ -259,7 +321,7 @@ export default function SummaryPage() {
                   {isFirstPlace && '🥇 '}
                   {isSecondPlace && '🥈 '}
                   {isThirdPlace && '🥉 '}
-                  {index + 1}位
+                  {rank}位
                 </Typography>
                 <Typography
                   variant="h6"
@@ -411,6 +473,71 @@ export default function SummaryPage() {
                     ))}
                 </>
               )}
+
+              {/* プレイヤーの回答状況 */}
+              <Divider sx={{ my: 2 }} />
+              {(() => {
+                const myAnswer = summary.answers.find(a => a.player_id === playerId)
+                const canAnswer = summary.questionIndex <= (room?.current_question_index ?? 0)
+
+                if (myAnswer) {
+                  // 既に回答済み
+                  return (
+                    <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        ✅ あなたの回答
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>回答:</strong> {myAnswer.answer}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>予想:</strong> {myAnswer.prediction}
+                      </Typography>
+                      {myAnswer.comment && (
+                        <Typography variant="body2">
+                          <strong>コメント:</strong> {myAnswer.comment}
+                        </Typography>
+                      )}
+                      {myAnswer.is_correct_prediction && (
+                        <Chip
+                          label="予想的中！ +10pt"
+                          color="success"
+                          size="small"
+                          sx={{ mt: 1 }}
+                        />
+                      )}
+                    </Box>
+                  )
+                } else if (canAnswer) {
+                  // 未回答だが、既に出題された問題
+                  return (
+                    <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        この問題にはまだ回答していません
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                        ※ ポイントは加算されませんが、参考記録として回答を残せます
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => router.push(`/room/${roomId}/answer?question=${summary.questionIndex}`)}
+                      >
+                        参考記録として回答する
+                      </Button>
+                    </Box>
+                  )
+                } else {
+                  // まだ出題されていない問題
+                  return (
+                    <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        まだ出題されていない問題です
+                      </Typography>
+                    </Box>
+                  )
+                }
+              })()}
             </AccordionDetails>
           </Accordion>
         ))}

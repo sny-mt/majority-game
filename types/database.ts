@@ -37,6 +37,7 @@ export interface Answer {
   comment: string | null // コメント（任意）
   is_correct_prediction: boolean // 予想が当たったか
   points_earned: number // 獲得ポイント
+  is_late_answer: boolean // 遅れて回答した参考記録かどうか
   created_at: string
 }
 

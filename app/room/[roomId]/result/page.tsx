@@ -84,11 +84,13 @@ export default function ResultPage() {
 
         if (answersError) throw answersError
 
-        // プレイヤー情報を取得
+        // プレイヤー情報を取得（スコア降順、同点の場合は参加日時昇順）
         const { data: playersData, error: playersError } = await supabase
           .from('players')
           .select('*')
           .eq('room_id', roomId)
+          .order('score', { ascending: false })
+          .order('joined_at', { ascending: true })
 
         if (playersError) throw playersError
 
@@ -209,12 +211,13 @@ export default function ResultPage() {
           }
         }
 
-        // 更新されたプレイヤーデータを再取得して確実に最新の状態にする
+        // 更新されたプレイヤーデータを再取得して確実に最新の状態にする（スコア降順、同点の場合は参加日時昇順）
         const { data: updatedPlayersData } = await supabase
           .from('players')
           .select('*')
           .eq('room_id', roomId)
           .order('score', { ascending: false })
+          .order('joined_at', { ascending: true })
 
         if (updatedPlayersData) {
           setPlayers(updatedPlayersData)
@@ -619,7 +622,16 @@ export default function ResultPage() {
         </Typography>
         {players.map((player, index) => {
           const isCurrentPlayer = player.id === playerId
-          const isFirstPlace = index === 0
+
+          // 同点を考慮した順位計算
+          let rank = 1
+          for (let i = 0; i < index; i++) {
+            if (players[i].score > player.score) {
+              rank++
+            }
+          }
+
+          const isFirstPlace = rank === 1
 
           return (
             <Box
@@ -654,7 +666,7 @@ export default function ResultPage() {
                     color: isCurrentPlayer ? 'primary.dark' : 'inherit'
                   }}
                 >
-                  {index + 1}位
+                  {rank}位
                 </Typography>
                 <Typography
                   variant="body1"
@@ -681,18 +693,24 @@ export default function ResultPage() {
         })}
       </Paper>
 
-      {/* これまでの結果を見るボタン */}
-      {room.current_question_index > 0 && (
-        <Button
-          fullWidth
-          variant="outlined"
-          size="large"
-          onClick={() => router.push(`/room/${roomId}/summary`)}
-          sx={{ mb: 2, py: 1.5 }}
-        >
-          📊 これまでの結果を見る
-        </Button>
-      )}
+      {/* 問題ナビゲーション */}
+      <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
+          📚 問題ナビゲーション
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {room.current_question_index > 0 && (
+            <Button
+              variant="outlined"
+              size="medium"
+              onClick={() => router.push(`/room/${roomId}/summary`)}
+              sx={{ flex: 1, minWidth: '140px' }}
+            >
+              📊 全ての結果を見る
+            </Button>
+          )}
+        </Box>
+      </Paper>
 
       {/* 主催者用コントロール */}
       {isHost && (

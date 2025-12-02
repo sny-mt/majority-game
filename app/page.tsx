@@ -8,7 +8,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import HistoryIcon from '@mui/icons-material/History'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
-import { sanitizeInput, validateRoomName, validateQuestionText, validateChoice } from '@/lib/utils/validation'
+import { sanitizeInput, validateRoomName, validateQuestionText, validateChoice, validateNickname } from '@/lib/utils/validation'
 
 interface QuestionInput {
   questionText: string
@@ -32,6 +32,7 @@ interface ActiveRoom {
 export default function Home() {
   const router = useRouter()
   const [roomName, setRoomName] = useState('')
+  const [hostNickname, setHostNickname] = useState('')
   const [questions, setQuestions] = useState<QuestionInput[]>([
     { questionText: '', choiceA: '', choiceB: '' }
   ])
@@ -156,6 +157,13 @@ export default function Home() {
       // プレイヤーIDを取得または生成
       const hostPlayerId = getOrCreatePlayerId()
 
+      // 主催者のニックネームをバリデーションとサニタイズ
+      const sanitizedNickname = sanitizeInput(hostNickname, 50)
+      const nicknameValidation = validateNickname(sanitizedNickname)
+      if (!nicknameValidation.valid) {
+        throw new Error(nicknameValidation.error)
+      }
+
       // ルーム名をバリデーションとサニタイズ
       const sanitizedRoomName = sanitizeInput(roomName, 100) || 'マジョリティゲーム'
       const roomNameValidation = validateRoomName(sanitizedRoomName)
@@ -231,7 +239,7 @@ export default function Home() {
         .upsert({
           id: hostPlayerId,
           room_id: room.id,
-          nickname: '主催者',
+          nickname: sanitizedNickname,
           is_host: true,
           score: 0
         }, {
@@ -253,7 +261,7 @@ export default function Home() {
     }
   }
 
-  const isValid = questions.every(q =>
+  const isValid = hostNickname.trim() && questions.every(q =>
     q.questionText.trim() && q.choiceA.trim() && q.choiceB.trim()
   )
 
@@ -343,6 +351,15 @@ export default function Home() {
       )}
 
       <Paper elevation={3} sx={{ p: 3 }}>
+        <TextField
+          fullWidth
+          label="主催者の名前"
+          value={hostNickname}
+          onChange={(e) => setHostNickname(e.target.value)}
+          placeholder="例：たろう"
+          sx={{ mb: 2 }}
+          required
+        />
         <TextField
           fullWidth
           label="ルーム名"

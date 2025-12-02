@@ -52,6 +52,15 @@ export default function JoinPage() {
       // プレイヤーIDを取得または生成
       const playerId = getOrCreatePlayerId()
 
+      // ルーム情報を取得（statusを確認するため）
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single()
+
+      if (roomError) throw roomError
+
       // 既にこのプレイヤーがこのルームに参加しているかチェック
       const { data: existingPlayer } = await supabase
         .from('players')
@@ -61,8 +70,17 @@ export default function JoinPage() {
         .single()
 
       if (existingPlayer) {
-        // 既に参加済みの場合は回答ページへ
-        router.push(`/room/${roomId}/answer`)
+        // 既に参加済みの場合は、ルームのstatusに応じて適切なページへ
+        if (roomData.status === 'answering') {
+          router.push(`/room/${roomId}/answer`)
+        } else if (roomData.status === 'showing_result') {
+          router.push(`/room/${roomId}/result`)
+        } else if (roomData.status === 'finished') {
+          router.push(`/room/${roomId}/summary`)
+        } else {
+          // waiting状態の場合はanswerページへ（待機画面）
+          router.push(`/room/${roomId}/answer`)
+        }
         return
       }
 
@@ -83,8 +101,17 @@ export default function JoinPage() {
 
       console.log('Player joined:', playerId)
 
-      // 回答ページへ遷移
-      router.push(`/room/${roomId}/answer`)
+      // ルームのstatusに応じて適切なページへ遷移
+      if (roomData.status === 'answering') {
+        router.push(`/room/${roomId}/answer`)
+      } else if (roomData.status === 'showing_result') {
+        router.push(`/room/${roomId}/result`)
+      } else if (roomData.status === 'finished') {
+        router.push(`/room/${roomId}/summary`)
+      } else {
+        // waiting状態の場合はanswerページへ（待機画面）
+        router.push(`/room/${roomId}/answer`)
+      }
     } catch (err: any) {
       console.error('Error joining room:', err)
       setError(err.message || 'ルームへの参加に失敗しました')
