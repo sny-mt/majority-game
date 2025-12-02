@@ -2,7 +2,21 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Container, TextField, Button, Typography, Box, Paper, CircularProgress } from '@mui/material'
+import {
+  Container,
+  TextField,
+  Button,
+  Typography,
+  Box,
+  Paper,
+  CircularProgress,
+  Fade,
+  Grow,
+  Skeleton
+} from '@mui/material'
+import PersonAddIcon from '@mui/icons-material/PersonAdd'
+import SentimentDissatisfiedIcon from '@mui/icons-material/SentimentDissatisfied'
+import GroupsIcon from '@mui/icons-material/Groups'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateNickname } from '@/lib/utils/validation'
@@ -17,18 +31,21 @@ export default function JoinPage() {
   const [error, setError] = useState('')
   const [roomExists, setRoomExists] = useState(true)
   const [isCheckingRoom, setIsCheckingRoom] = useState(true)
+  const [roomName, setRoomName] = useState('')
 
   useEffect(() => {
     // ルームが存在するか確認
     const checkRoom = async () => {
       const { data, error } = await supabase
         .from('rooms')
-        .select('id')
+        .select('id, room_name')
         .eq('id', roomId)
         .single()
 
       if (error || !data) {
         setRoomExists(false)
+      } else {
+        setRoomName(data.room_name || 'マジョリティゲーム')
       }
       setIsCheckingRoom(false)
     }
@@ -123,8 +140,16 @@ export default function JoinPage() {
     return (
       <Container maxWidth="sm">
         <Box sx={{ mt: 8, textAlign: 'center' }}>
-          <CircularProgress />
-          <Typography sx={{ mt: 2 }}>ルームを確認中...</Typography>
+          <Paper elevation={3} sx={{ p: 4 }}>
+            <Skeleton
+              variant="circular"
+              width={80}
+              height={80}
+              sx={{ mx: 'auto', mb: 3 }}
+            />
+            <Skeleton variant="text" width={200} height={40} sx={{ mx: 'auto', mb: 2 }} />
+            <Skeleton variant="text" width={150} height={24} sx={{ mx: 'auto' }} />
+          </Paper>
         </Box>
       </Container>
     )
@@ -134,14 +159,46 @@ export default function JoinPage() {
     return (
       <Container maxWidth="sm">
         <Box sx={{ mt: 8 }}>
-          <Paper elevation={3} sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h5" gutterBottom color="error">
-              ルームが見つかりません
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              URLを確認してください
-            </Typography>
-          </Paper>
+          <Fade in timeout={500}>
+            <Paper
+              elevation={3}
+              sx={{
+                p: 4,
+                textAlign: 'center',
+                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 80,
+                  height: 80,
+                  borderRadius: '24px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  mb: 3,
+                }}
+              >
+                <SentimentDissatisfiedIcon sx={{ fontSize: 40, color: '#ef4444' }} />
+              </Box>
+              <Typography variant="h5" gutterBottom fontWeight="bold" color="error">
+                ルームが見つかりません
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                URLが正しいか確認してください。<br />
+                ルームが終了している可能性もあります。
+              </Typography>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => router.push('/')}
+              >
+                ホームに戻る
+              </Button>
+            </Paper>
+          </Fade>
         </Box>
       </Container>
     )
@@ -149,46 +206,114 @@ export default function JoinPage() {
 
   return (
     <Container maxWidth="sm">
-      <Box sx={{ mt: 8, mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
-          ルームに参加
-        </Typography>
-        <Typography variant="body2" gutterBottom align="center" color="text.secondary">
-          ニックネームを入力してください
-        </Typography>
-      </Box>
-
-      <Paper elevation={3} sx={{ p: 4 }}>
-        <TextField
-          fullWidth
-          label="ニックネーム"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          placeholder="例：たろう"
-          sx={{ mb: 3 }}
-          autoFocus
-          disabled={isJoining}
-        />
-
-        <Button
-          fullWidth
-          variant="contained"
-          size="large"
-          onClick={handleJoin}
-          disabled={!nickname.trim() || isJoining}
-          sx={{ py: 1.5 }}
-        >
-          {isJoining ? <CircularProgress size={24} /> : '参加する'}
-        </Button>
-
-        {error && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
-            <Typography variant="body2" color="error.dark">
-              {error}
+      <Box sx={{ mt: 6, mb: 4 }}>
+        <Fade in timeout={800}>
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Box
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 80,
+                height: 80,
+                borderRadius: '24px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                boxShadow: '0 10px 40px rgba(102, 126, 234, 0.4)',
+                mb: 3,
+                animation: 'pulse 2s ease-in-out infinite',
+                '@keyframes pulse': {
+                  '0%, 100%': { transform: 'scale(1)' },
+                  '50%': { transform: 'scale(1.05)' },
+                },
+              }}
+            >
+              <GroupsIcon sx={{ fontSize: 40, color: 'white' }} />
+            </Box>
+            <Typography
+              variant="h4"
+              component="h1"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                mb: 1,
+              }}
+            >
+              ルームに参加
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              {roomName}
             </Typography>
           </Box>
-        )}
-      </Paper>
+        </Fade>
+
+        <Grow in timeout={600}>
+          <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
+              ニックネームを入力して参加しましょう
+            </Typography>
+            <TextField
+              fullWidth
+              label="ニックネーム"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="例：たろう"
+              sx={{ mb: 3 }}
+              autoFocus
+              disabled={isJoining}
+              InputProps={{
+                sx: { fontSize: '1.1rem' }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && nickname.trim() && !isJoining) {
+                  handleJoin()
+                }
+              }}
+            />
+
+            <Button
+              fullWidth
+              variant="contained"
+              size="large"
+              onClick={handleJoin}
+              disabled={!nickname.trim() || isJoining}
+              startIcon={
+                isJoining ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : (
+                  <PersonAddIcon />
+                )
+              }
+              sx={{
+                py: 2,
+                fontSize: '1.1rem',
+              }}
+            >
+              {isJoining ? '参加中...' : '参加する'}
+            </Button>
+
+            {error && (
+              <Fade in>
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 2,
+                    borderRadius: 2,
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                  }}
+                >
+                  <Typography variant="body2" color="error">
+                    {error}
+                  </Typography>
+                </Box>
+              </Fade>
+            )}
+          </Paper>
+        </Grow>
+      </Box>
     </Container>
   )
 }

@@ -18,16 +18,29 @@ import {
   List,
   ListItem,
   ListItemText,
-  Collapse
+  Collapse,
+  Fade,
+  Grow,
+  Skeleton,
+  LinearProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import PeopleIcon from '@mui/icons-material/People'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import SendIcon from '@mui/icons-material/Send'
+import QuizIcon from '@mui/icons-material/Quiz'
+import LightbulbIcon from '@mui/icons-material/Lightbulb'
+import ChatIcon from '@mui/icons-material/Chat'
+import VisibilityIcon from '@mui/icons-material/Visibility'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateComment } from '@/lib/utils/validation'
-import type { Room, Question, Player, Answer } from '@/types/database'
+import type { Room, Question } from '@/types/database'
 
 export default function AnswerPage() {
   const params = useParams()
@@ -38,8 +51,8 @@ export default function AnswerPage() {
   const [room, setRoom] = useState<Room | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [allQuestions, setAllQuestions] = useState<Question[]>([])
-  const [viewQuestionIndex, setViewQuestionIndex] = useState<number | null>(null) // 表示中の質問インデックス
-  const [isLateAnswer, setIsLateAnswer] = useState(false) // 遅れての回答（参考記録）かどうか
+  const [viewQuestionIndex, setViewQuestionIndex] = useState<number | null>(null)
+  const [isLateAnswer, setIsLateAnswer] = useState(false)
   const [selectedChoice, setSelectedChoice] = useState<string>('')
   const [freeText, setFreeText] = useState('')
   const [selectedPrediction, setSelectedPrediction] = useState<string>('')
@@ -47,27 +60,24 @@ export default function AnswerPage() {
   const [comment, setComment] = useState('')
   const [hasAnswered, setHasAnswered] = useState(false)
 
-  // 自分の回答データ
   const [myAnswer, setMyAnswer] = useState<string>('')
   const [myPrediction, setMyPrediction] = useState<string>('')
   const [myComment, setMyComment] = useState<string>('')
 
-  // リアルタイム状態
   const [totalPlayers, setTotalPlayers] = useState(0)
   const [answeredCount, setAnsweredCount] = useState(0)
   const [isHost, setIsHost] = useState(false)
   const [playerId, setPlayerId] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
   const [showQuestionList, setShowQuestionList] = useState(false)
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
 
   useEffect(() => {
     const initializeRoom = async () => {
       try {
-        // プレイヤーIDを取得
         const pid = getOrCreatePlayerId()
         setPlayerId(pid)
 
-        // ルーム情報を取得
         const { data: roomData, error: roomError } = await supabase
           .from('rooms')
           .select('*')
@@ -77,19 +87,15 @@ export default function AnswerPage() {
         if (roomError) throw roomError
         setRoom(roomData)
 
-        // 主催者かチェック
         setIsHost(roomData.host_player_id === pid)
 
-        // 表示する質問のインデックスを決定（クエリパラメータまたは現在のインデックス）
         const questionParam = searchParams.get('question')
         const targetQuestionIndex = questionParam ? parseInt(questionParam) : roomData.current_question_index
         setViewQuestionIndex(targetQuestionIndex)
 
-        // 過去の問題かどうかを判定（現在進行中の問題より前の場合）
         const isPastQuestion = targetQuestionIndex < roomData.current_question_index
         setIsLateAnswer(isPastQuestion)
 
-        // 指定された質問を取得
         const { data: questionData, error: questionError } = await supabase
           .from('questions')
           .select('*')
@@ -100,7 +106,6 @@ export default function AnswerPage() {
         if (questionError) throw questionError
         setCurrentQuestion(questionData)
 
-        // 全ての質問を取得
         const { data: allQuestionsData, error: allQuestionsError } = await supabase
           .from('questions')
           .select('*')
@@ -110,7 +115,6 @@ export default function AnswerPage() {
         if (allQuestionsError) throw allQuestionsError
         setAllQuestions(allQuestionsData || [])
 
-        // 自分が既に回答しているかチェック
         const { data: answerData } = await supabase
           .from('answers')
           .select('*')
@@ -125,10 +129,7 @@ export default function AnswerPage() {
           setMyComment(answerData.comment || '')
         }
 
-        // プレイヤー数を取得
         await fetchPlayerCount()
-
-        // 回答済み人数を取得
         await fetchAnsweredCount(questionData.id)
 
         setIsLoading(false)
@@ -141,11 +142,9 @@ export default function AnswerPage() {
     initializeRoom()
   }, [roomId])
 
-  // Realtimeリスナーの設定
   useEffect(() => {
     if (!currentQuestion) return
 
-    // プレイヤーの変更を購読
     const playersChannel = supabase
       .channel(`players:${roomId}`)
       .on(
@@ -162,7 +161,6 @@ export default function AnswerPage() {
       )
       .subscribe()
 
-    // 回答の変更を購読
     const answersChannel = supabase
       .channel(`answers:${currentQuestion.id}`)
       .on(
@@ -179,7 +177,6 @@ export default function AnswerPage() {
       )
       .subscribe()
 
-    // ルームステータスの変更を購読
     const roomChannel = supabase
       .channel(`room:${roomId}`)
       .on(
@@ -194,7 +191,6 @@ export default function AnswerPage() {
           const updatedRoom = payload.new as Room
           setRoom(updatedRoom)
 
-          // ステータスが'showing_result'に変わったら結果ページへ
           if (updatedRoom.status === 'showing_result') {
             router.push(`/room/${roomId}/result`)
           }
@@ -259,16 +255,25 @@ export default function AnswerPage() {
     }
   }
 
-  const handleSubmitAnswer = async () => {
+  // 確認ダイアログを開く
+  const handleOpenConfirmDialog = () => {
+    if (!currentQuestion) return
+    const answer = freeText.trim() || selectedChoice
+    const prediction = isLateAnswer ? '' : (predictionText.trim() || selectedPrediction)
+    if (!answer || (!isLateAnswer && !prediction) || hasAnswered) return
+    setConfirmDialogOpen(true)
+  }
+
+  // 実際の回答送信処理
+  const handleConfirmSubmit = async () => {
+    setConfirmDialogOpen(false)
     if (!currentQuestion) return
 
     const answer = freeText.trim() || selectedChoice
-    // 遅れての回答の場合、予想は不要（マジョリティが既に分かっているため）
     const prediction = isLateAnswer ? '' : (predictionText.trim() || selectedPrediction)
     if (!answer || (!isLateAnswer && !prediction) || hasAnswered) return
 
     try {
-      // コメントをサニタイズとバリデーション
       const sanitizedComment = sanitizeInput(comment, 500)
       const commentValidation = validateComment(sanitizedComment)
 
@@ -291,11 +296,29 @@ export default function AnswerPage() {
       if (error) throw error
 
       setHasAnswered(true)
+      setMyAnswer(answer)
+      setMyPrediction(prediction)
+      setMyComment(sanitizedComment)
       console.log('Answer submitted:', { answer, prediction, comment: sanitizedComment, isLateAnswer })
     } catch (error) {
       console.error('Error submitting answer:', error)
       alert('回答の送信に失敗しました')
     }
+  }
+
+  // 表示用の回答テキストを取得
+  const getDisplayAnswer = () => {
+    const answer = freeText.trim() || selectedChoice
+    if (answer === 'A') return `A: ${currentQuestion?.choice_a}`
+    if (answer === 'B') return `B: ${currentQuestion?.choice_b}`
+    return answer
+  }
+
+  const getDisplayPrediction = () => {
+    const prediction = predictionText.trim() || selectedPrediction
+    if (prediction === 'A') return `A: ${currentQuestion?.choice_a}`
+    if (prediction === 'B') return `B: ${currentQuestion?.choice_b}`
+    return prediction
   }
 
   const handleShowResults = async () => {
@@ -317,18 +340,23 @@ export default function AnswerPage() {
     }
   }
 
-  // 遅れての回答の場合、予想は不要（マジョリティが既に分かっているため）
   const isAnswerValid = (selectedChoice !== '' || freeText.trim() !== '') &&
                         (isLateAnswer || selectedPrediction !== '' || predictionText.trim() !== '') &&
                         !hasAnswered
   const allPlayersAnswered = totalPlayers > 0 && answeredCount === totalPlayers
+  const progressPercent = totalPlayers > 0 ? (answeredCount / totalPlayers) * 100 : 0
 
   if (isLoading) {
     return (
       <Container maxWidth="sm">
-        <Box sx={{ mt: 8, textAlign: 'center' }}>
-          <CircularProgress />
-          <Typography sx={{ mt: 2 }}>読み込み中...</Typography>
+        <Box sx={{ mt: 4 }}>
+          <Paper elevation={3} sx={{ p: 3 }}>
+            <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
+            <Skeleton variant="text" width="100%" height={48} sx={{ mb: 3 }} />
+            <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2, mb: 2 }} />
+            <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2, mb: 2 }} />
+            <Skeleton variant="rectangular" height={48} sx={{ borderRadius: 2 }} />
+          </Paper>
         </Box>
       </Container>
     )
@@ -349,300 +377,516 @@ export default function AnswerPage() {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ pb: 4 }}>
-      <Box sx={{ mt: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Chip
-            icon={<PeopleIcon />}
-            label={`参加: ${totalPlayers}人`}
-            color="primary"
-            size="small"
+    <>
+      {/* 固定ステータスバー - すりガラス風 */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          pt: 1.5,
+          pb: 1.5,
+          px: 2,
+          background: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'rgba(15, 23, 42, 0.4)'
+              : 'rgba(255, 255, 255, 0.35)',
+          backdropFilter: 'blur(20px) saturate(200%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(200%)',
+          borderBottom: (theme) =>
+            theme.palette.mode === 'dark'
+              ? '1px solid rgba(255, 255, 255, 0.15)'
+              : '1px solid rgba(255, 255, 255, 0.6)',
+          boxShadow: (theme) =>
+            theme.palette.mode === 'dark'
+              ? '0 4px 30px rgba(0, 0, 0, 0.2)'
+              : '0 4px 30px rgba(31, 38, 135, 0.08)',
+        }}
+      >
+        <Container maxWidth="sm" sx={{ px: { xs: 0, sm: 2 } }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Chip
+              icon={<PeopleIcon />}
+              label={`${totalPlayers}人参加`}
+              size="small"
+              sx={{
+                background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)',
+                border: '1px solid rgba(102, 126, 234, 0.3)',
+              }}
+            />
+            <Chip
+              icon={<CheckCircleIcon />}
+              label={`${answeredCount}/${totalPlayers}人回答`}
+              size="small"
+              color={allPlayersAnswered ? 'success' : 'default'}
+              sx={{
+                background: allPlayersAnswered
+                  ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%)'
+                  : 'rgba(255, 255, 255, 0.5)',
+                border: allPlayersAnswered ? '1px solid rgba(16, 185, 129, 0.3)' : undefined,
+              }}
+            />
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={progressPercent}
+            sx={{
+              height: 6,
+              borderRadius: 3,
+              bgcolor: 'rgba(102, 126, 234, 0.1)',
+              '& .MuiLinearProgress-bar': {
+                borderRadius: 3,
+                background: allPlayersAnswered
+                  ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
+                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              },
+            }}
           />
-          <Chip
-            icon={<CheckCircleIcon />}
-            label={`回答済み: ${answeredCount}/${totalPlayers}人`}
-            color={allPlayersAnswered ? 'success' : 'default'}
-            size="small"
-          />
-        </Box>
-
-        <Typography variant="body2" color="text.secondary" gutterBottom align="center">
-          質問 {room.current_question_index + 1}
-        </Typography>
-        <Typography variant="h5" component="h1" gutterBottom align="center" sx={{ fontWeight: 'bold' }}>
-          {currentQuestion.question_text}
-        </Typography>
+        </Container>
       </Box>
 
-      {/* 質問一覧 */}
-      <Paper elevation={2} sx={{ mb: 3 }}>
-        <Box
-          sx={{
-            p: 2,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            cursor: 'pointer',
-            '&:hover': { bgcolor: 'action.hover' }
-          }}
-          onClick={() => setShowQuestionList(!showQuestionList)}
-        >
-          <Typography variant="subtitle1" fontWeight="bold">
-            問題一覧 ({allQuestions.length}問)
-          </Typography>
-          {showQuestionList ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-        </Box>
-        <Collapse in={showQuestionList}>
-          <Divider />
-          <List sx={{ py: 0 }}>
-            {allQuestions.map((question, index) => {
-              const isCurrent = question.id === currentQuestion.id
-              const isPast = index < (room.current_question_index)
-
-              return (
-                <ListItem
-                  key={question.id}
-                  sx={{
-                    bgcolor: isCurrent ? 'primary.light' : isPast ? 'action.hover' : 'background.paper',
-                    borderLeft: isCurrent ? 4 : 0,
-                    borderColor: 'primary.main',
-                    opacity: isPast ? 0.7 : 1
-                  }}
-                >
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" fontWeight={isCurrent ? 'bold' : 'normal'}>
-                          Q{index + 1}
-                        </Typography>
-                        {isCurrent && (
-                          <Chip label="回答中" color="primary" size="small" />
-                        )}
-                        {isPast && (
-                          <Chip label="終了" size="small" />
-                        )}
-                      </Box>
-                    }
-                    secondary={
-                      <Typography variant="body2" color="text.secondary">
-                        {question.question_text}
-                      </Typography>
-                    }
-                  />
-                </ListItem>
-              )
-            })}
-          </List>
-        </Collapse>
-      </Paper>
-
-      <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-        {isLateAnswer && !hasAnswered && (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" fontWeight="bold">
-              📝 参考記録として回答
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              この問題は既に終了しています。回答はあなたの意見の記録として残りますが、ポイントは加算されません。
-            </Typography>
-          </Alert>
-        )}
-        {hasAnswered ? (
-          <Box>
-            <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 2 }}>
-              {isLateAnswer ? '参考記録として回答済みです' : '回答済みです。他の参加者の回答を待っています...'}
-            </Alert>
-            <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-              {room?.status === 'showing_result' && (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  fullWidth
-                  onClick={() => router.push(`/room/${roomId}/result`)}
-                >
-                  📊 この問題の結果を見る
-                </Button>
-              )}
-              {room && room.current_question_index > 0 && (
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  onClick={() => router.push(`/room/${roomId}/summary`)}
-                >
-                  📚 全ての結果を見る
-                </Button>
-              )}
+      <Container maxWidth="sm" sx={{ pb: 4, pt: 10 }}>
+        {/* 質問カード */}
+        <Grow in timeout={600}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 3,
+              mb: 3,
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+              border: '2px solid rgba(102, 126, 234, 0.2)',
+              textAlign: 'center',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
+              <QuizIcon sx={{ color: 'primary.main' }} />
+              <Typography variant="body2" color="text.secondary">
+                質問 {room.current_question_index + 1}
+              </Typography>
             </Box>
-          </Box>
-        ) : (
-          <>
-            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-              あなたの意見
-            </Typography>
-            <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-              選択肢から選ぶ
-            </Typography>
-            <ToggleButtonGroup
-              value={selectedChoice}
-              exclusive
-              onChange={handleChoiceChange}
-              fullWidth
-              orientation="vertical"
-              sx={{ mb: 2 }}
+            <Typography
+              variant="h5"
+              component="h1"
+              sx={{
+                fontWeight: 700,
+                lineHeight: 1.4,
+              }}
             >
-              <ToggleButton
-                value="A"
-                disabled={hasAnswered}
-                sx={{
-                  py: 2,
-                  fontSize: '1.1rem',
-                  justifyContent: 'flex-start',
-                  textTransform: 'none'
-                }}
-              >
-                A: {currentQuestion.choice_a}
-              </ToggleButton>
-              <ToggleButton
-                value="B"
-                disabled={hasAnswered}
-                sx={{
-                  py: 2,
-                  fontSize: '1.1rem',
-                  justifyContent: 'flex-start',
-                  textTransform: 'none'
-                }}
-              >
-                B: {currentQuestion.choice_b}
-              </ToggleButton>
-            </ToggleButtonGroup>
-
-            <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-              または自由に記述
+              {currentQuestion.question_text}
             </Typography>
-            <TextField
-              fullWidth
-              placeholder="自分の答えを入力"
-              value={freeText}
-              onChange={(e) => handleFreeTextChange(e.target.value)}
-              disabled={hasAnswered}
-              sx={{ mb: 4 }}
-            />
+          </Paper>
+        </Grow>
 
-            {!isLateAnswer && (
-              <>
-                <Divider sx={{ my: 3 }} />
+      {/* 質問一覧 */}
+      <Fade in timeout={700}>
+        <Paper elevation={2} sx={{ mb: 3 }}>
+          <Box
+            sx={{
+              p: 2,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              '&:hover': { background: 'rgba(102, 126, 234, 0.05)' }
+            }}
+            onClick={() => setShowQuestionList(!showQuestionList)}
+          >
+            <Typography variant="subtitle1" fontWeight="600">
+              問題一覧 ({allQuestions.length}問)
+            </Typography>
+            {showQuestionList ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          </Box>
+          <Collapse in={showQuestionList}>
+            <Divider />
+            <List sx={{ py: 0 }}>
+              {allQuestions.map((question, index) => {
+                const isCurrent = question.id === currentQuestion.id
+                const isPast = index < (room.current_question_index)
 
-                <Typography variant="h6" gutterBottom sx={{ color: 'secondary.main', fontWeight: 'bold' }}>
-                  多数派の予想
-                </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
-                  多数派が選ぶ答えを予想してください（予想が当たると+10ポイント）
-                </Typography>
-                <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-                  選択肢から選ぶ
-                </Typography>
+                return (
+                  <ListItem
+                    key={question.id}
+                    sx={{
+                      background: isCurrent
+                        ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)'
+                        : isPast
+                        ? 'rgba(0, 0, 0, 0.02)'
+                        : 'transparent',
+                      borderLeft: isCurrent ? '4px solid' : '4px solid transparent',
+                      borderColor: isCurrent ? 'primary.main' : 'transparent',
+                      opacity: isPast ? 0.6 : 1
+                    }}
+                  >
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" fontWeight={isCurrent ? 700 : 400}>
+                            Q{index + 1}
+                          </Typography>
+                          {isCurrent && (
+                            <Chip label="回答中" color="primary" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                          )}
+                          {isPast && (
+                            <Chip label="終了" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                          )}
+                        </Box>
+                      }
+                      secondary={question.question_text}
+                    />
+                  </ListItem>
+                )
+              })}
+            </List>
+          </Collapse>
+        </Paper>
+      </Fade>
+
+      {/* 回答フォーム */}
+      <Fade in timeout={800}>
+        <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
+          {isLateAnswer && !hasAnswered && (
+            <Alert
+              severity="info"
+              sx={{ mb: 3 }}
+              icon={<LightbulbIcon />}
+            >
+              <Typography variant="subtitle2" fontWeight="bold">
+                参考記録として回答
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                この問題は既に終了しています。ポイントは加算されませんが、あなたの意見を記録できます。
+              </Typography>
+            </Alert>
+          )}
+
+          {hasAnswered ? (
+            <Box>
+              <Alert
+                severity="success"
+                icon={<CheckCircleIcon />}
+                sx={{
+                  mb: 2,
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                }}
+              >
+                {isLateAnswer ? '参考記録として回答済みです' : '回答完了！他の参加者を待っています...'}
+              </Alert>
+
+              <Box sx={{ p: 2, borderRadius: 2, background: 'rgba(102, 126, 234, 0.05)', mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>あなたの回答</Typography>
+                <Typography variant="body1" fontWeight="600">{myAnswer}</Typography>
+                {myPrediction && (
+                  <>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} gutterBottom>多数派予想</Typography>
+                    <Typography variant="body1" fontWeight="600">{myPrediction}</Typography>
+                  </>
+                )}
+              </Box>
+
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {room?.status === 'showing_result' && (
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={() => router.push(`/room/${roomId}/result`)}
+                    startIcon={<VisibilityIcon />}
+                  >
+                    結果を見る
+                  </Button>
+                )}
+                {room && room.current_question_index > 0 && (
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    onClick={() => router.push(`/room/${roomId}/summary`)}
+                  >
+                    全ての結果
+                  </Button>
+                )}
+              </Box>
+            </Box>
+          ) : (
+            <>
+              {/* あなたの意見 */}
+              <Box sx={{ mb: 4 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <QuizIcon sx={{ fontSize: 18, color: 'white' }} />
+                  </Box>
+                  <Typography variant="h6" fontWeight="bold">
+                    あなたの意見
+                  </Typography>
+                </Box>
+
                 <ToggleButtonGroup
-                  value={selectedPrediction}
+                  value={selectedChoice}
                   exclusive
-                  onChange={handlePredictionChange}
+                  onChange={handleChoiceChange}
                   fullWidth
                   orientation="vertical"
                   sx={{ mb: 2 }}
                 >
-                  <ToggleButton
-                    value="A"
-                    disabled={hasAnswered}
-                    sx={{
-                      py: 2,
-                      fontSize: '1.1rem',
-                      justifyContent: 'flex-start',
-                      textTransform: 'none'
-                    }}
-                  >
-                    A: {currentQuestion.choice_a}
+                  <ToggleButton value="A" disabled={hasAnswered}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start' }}>
+                      <Chip label="A" size="small" color="primary" sx={{ fontWeight: 700 }} />
+                      <Typography>{currentQuestion.choice_a}</Typography>
+                    </Box>
                   </ToggleButton>
-                  <ToggleButton
-                    value="B"
-                    disabled={hasAnswered}
-                    sx={{
-                      py: 2,
-                      fontSize: '1.1rem',
-                      justifyContent: 'flex-start',
-                      textTransform: 'none'
-                    }}
-                  >
-                    B: {currentQuestion.choice_b}
+                  <ToggleButton value="B" disabled={hasAnswered}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start' }}>
+                      <Chip label="B" size="small" color="secondary" sx={{ fontWeight: 700 }} />
+                      <Typography>{currentQuestion.choice_b}</Typography>
+                    </Box>
                   </ToggleButton>
                 </ToggleButtonGroup>
 
-                <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-                  または自由に記述
-                </Typography>
                 <TextField
                   fullWidth
-                  placeholder="多数派の予想を入力"
-                  value={predictionText}
-                  onChange={(e) => handlePredictionTextChange(e.target.value)}
+                  placeholder="または自由に記述..."
+                  value={freeText}
+                  onChange={(e) => handleFreeTextChange(e.target.value)}
                   disabled={hasAnswered}
-                  sx={{ mb: 3 }}
+                  size="small"
                 />
+              </Box>
 
-                <Divider sx={{ my: 3 }} />
-              </>
-            )}
+              {/* 多数派予想 */}
+              {!isLateAnswer && (
+                <Box sx={{ mb: 4 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Box
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <LightbulbIcon sx={{ fontSize: 18, color: 'white' }} />
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        多数派の予想
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        当たると +10pt
+                      </Typography>
+                    </Box>
+                  </Box>
 
-            {!isLateAnswer && <Divider sx={{ my: 3 }} />}
+                  <ToggleButtonGroup
+                    value={selectedPrediction}
+                    exclusive
+                    onChange={handlePredictionChange}
+                    fullWidth
+                    orientation="vertical"
+                    sx={{ mb: 2 }}
+                  >
+                    <ToggleButton value="A" disabled={hasAnswered}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start' }}>
+                        <Chip label="A" size="small" color="primary" sx={{ fontWeight: 700 }} />
+                        <Typography>{currentQuestion.choice_a}</Typography>
+                      </Box>
+                    </ToggleButton>
+                    <ToggleButton value="B" disabled={hasAnswered}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start' }}>
+                        <Chip label="B" size="small" color="secondary" sx={{ fontWeight: 700 }} />
+                        <Typography>{currentQuestion.choice_b}</Typography>
+                      </Box>
+                    </ToggleButton>
+                  </ToggleButtonGroup>
 
-            <Typography variant="h6" gutterBottom sx={{ color: 'text.secondary', fontWeight: 'bold' }}>
-              💬 コメント（任意）
+                  <TextField
+                    fullWidth
+                    placeholder="または自由に記述..."
+                    value={predictionText}
+                    onChange={(e) => handlePredictionTextChange(e.target.value)}
+                    disabled={hasAnswered}
+                    size="small"
+                  />
+                </Box>
+              )}
+
+              {/* コメント */}
+              <Box sx={{ mb: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <ChatIcon sx={{ fontSize: 18, color: 'white' }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold">
+                      コメント
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      任意・結果画面で表示
+                    </Typography>
+                  </Box>
+                </Box>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  placeholder="面白いコメントを残そう！"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  disabled={hasAnswered}
+                />
+              </Box>
+
+              <Button
+                fullWidth
+                variant="contained"
+                size="large"
+                onClick={handleOpenConfirmDialog}
+                disabled={!isAnswerValid}
+                startIcon={<SendIcon />}
+                sx={{ py: 2 }}
+              >
+                {isLateAnswer ? '参考記録として回答' : '回答する'}
+              </Button>
+            </>
+          )}
+        </Paper>
+      </Fade>
+
+      {/* 主催者コントロール */}
+      {isHost && (
+        <Fade in timeout={900}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 3,
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)',
+              border: '2px solid rgba(245, 158, 11, 0.3)',
+            }}
+          >
+            <Typography variant="subtitle1" gutterBottom fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <VisibilityIcon sx={{ color: '#f59e0b' }} />
+              主催者コントロール
             </Typography>
-            <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
-              結果画面で名前をタップすると表示されます
-            </Typography>
-            <TextField
-              fullWidth
-              multiline
-              rows={2}
-              placeholder="面白いコメントを残そう！"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              disabled={hasAnswered}
-              sx={{ mb: 3 }}
-            />
-
             <Button
               fullWidth
               variant="contained"
+              color="success"
               size="large"
-              onClick={handleSubmitAnswer}
-              disabled={!isAnswerValid}
+              onClick={handleShowResults}
+              disabled={!allPlayersAnswered}
               sx={{ py: 1.5 }}
             >
-              {isLateAnswer ? '参考記録として回答する' : '回答する'}
+              {allPlayersAnswered ? '結果を表示する' : `回答待ち (${answeredCount}/${totalPlayers})`}
             </Button>
-          </>
-        )}
-      </Paper>
-
-      {/* 主催者用コントロール */}
-      {isHost && (
-        <Paper elevation={3} sx={{ p: 3, bgcolor: 'warning.light' }}>
-          <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-            主催者コントロール
-          </Typography>
-          <Button
-            fullWidth
-            variant="contained"
-            color="success"
-            size="large"
-            onClick={handleShowResults}
-            disabled={!allPlayersAnswered}
-            sx={{ py: 1.5 }}
-          >
-            {allPlayersAnswered ? '回答を表示する' : `回答待ち (${answeredCount}/${totalPlayers})`}
-          </Button>
-        </Paper>
+          </Paper>
+        </Fade>
       )}
     </Container>
+
+      {/* 回答確認ダイアログ */}
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: (theme) =>
+              theme.palette.mode === 'dark'
+                ? 'rgba(30, 41, 59, 0.95)'
+                : 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(20px)',
+            minWidth: 300,
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, fontWeight: 'bold' }}>
+          回答内容の確認
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              あなたの意見
+            </Typography>
+            <Typography variant="body1" fontWeight="600" sx={{
+              p: 1.5,
+              borderRadius: 2,
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+            }}>
+              {getDisplayAnswer()}
+            </Typography>
+          </Box>
+          {!isLateAnswer && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                多数派の予想
+              </Typography>
+              <Typography variant="body1" fontWeight="600" sx={{
+                p: 1.5,
+                borderRadius: 2,
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%)',
+              }}>
+                {getDisplayPrediction()}
+              </Typography>
+            </Box>
+          )}
+          {comment.trim() && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                コメント
+              </Typography>
+              <Typography variant="body2" sx={{
+                p: 1.5,
+                borderRadius: 2,
+                background: 'rgba(0, 0, 0, 0.05)',
+              }}>
+                {comment}
+              </Typography>
+            </Box>
+          )}
+          <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
+            ※ 送信後は変更できません
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setConfirmDialogOpen(false)}
+            variant="outlined"
+          >
+            戻る
+          </Button>
+          <Button
+            onClick={handleConfirmSubmit}
+            variant="contained"
+            startIcon={<SendIcon />}
+          >
+            送信する
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   )
 }

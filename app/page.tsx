@@ -2,10 +2,30 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Container, TextField, Button, Typography, Box, Paper, IconButton, Divider, CircularProgress, Card, CardContent, CardActions } from '@mui/material'
+import {
+  Container,
+  TextField,
+  Button,
+  Typography,
+  Box,
+  Paper,
+  IconButton,
+  Divider,
+  CircularProgress,
+  Card,
+  CardContent,
+  Fade,
+  Grow,
+  Slide,
+  Skeleton
+} from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import HistoryIcon from '@mui/icons-material/History'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
+import GroupsIcon from '@mui/icons-material/Groups'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateRoomName, validateQuestionText, validateChoice, validateNickname } from '@/lib/utils/validation'
@@ -42,6 +62,7 @@ export default function Home() {
   const [pastRooms, setPastRooms] = useState<PastRoom[]>([])
   const [isLoadingPastRooms, setIsLoadingPastRooms] = useState(true)
   const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     const loadPastRooms = async () => {
@@ -141,11 +162,9 @@ export default function Home() {
         }))
         setQuestions(loadedQuestions)
         setRoomName(roomName)
-        alert(`「${roomName}」の質問を読み込みました`)
       }
     } catch (err) {
       console.error('Error loading room questions:', err)
-      alert('質問の読み込みに失敗しました')
     }
   }
 
@@ -276,210 +295,397 @@ export default function Home() {
     }
   }
 
+  const handleCopyUrl = async () => {
+    try {
+      // navigator.clipboard はHTTPS環境でのみ動作
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(roomUrl)
+      } else {
+        // フォールバック: 一時的なtextareaを使用
+        const textArea = document.createElement('textarea')
+        textArea.value = roomUrl
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        textArea.remove()
+      }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+      // コピー失敗時はURLを選択状態にする
+      alert('URLをコピーできませんでした。手動でコピーしてください。')
+    }
+  }
+
   return (
-    <Container maxWidth="sm" sx={{ pb: 4 }}>
-      <Box sx={{ mt: 4, mb: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
-          マジョリティゲーム
-        </Typography>
-        <Typography variant="body2" gutterBottom align="center" color="text.secondary">
-          主催者：お題を入力してルームを作成
-        </Typography>
-      </Box>
+    <Container maxWidth="sm" sx={{ pb: 6, pt: 2 }}>
+      {/* ヘッダー */}
+      <Fade in timeout={800}>
+        <Box sx={{ mt: 4, mb: 4, textAlign: 'center' }}>
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 80,
+              height: 80,
+              borderRadius: '24px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              boxShadow: '0 10px 40px rgba(102, 126, 234, 0.4)',
+              mb: 3,
+              animation: 'float 3s ease-in-out infinite',
+              '@keyframes float': {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' },
+              },
+            }}
+          >
+            <GroupsIcon sx={{ fontSize: 40, color: 'white' }} />
+          </Box>
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              mb: 1,
+            }}
+          >
+            マジョリティゲーム
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            みんなの多数派を当てるパーティゲーム
+          </Typography>
+        </Box>
+      </Fade>
 
       {/* 進行中のルームに戻る */}
       {activeRoom && (
-        <Paper elevation={3} sx={{ p: 3, mb: 3, bgcolor: 'warning.light', border: 2, borderColor: 'warning.main' }}>
-          <Typography variant="h6" gutterBottom fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            ⚠️ 進行中のルームがあります
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {activeRoom.room_name}
-          </Typography>
-          <Button
-            fullWidth
-            variant="contained"
-            color="warning"
-            size="large"
-            onClick={handleRejoinRoom}
-            sx={{ py: 1.5 }}
+        <Slide direction="down" in timeout={500}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 3,
+              mb: 3,
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)',
+              border: '2px solid rgba(245, 158, 11, 0.4)',
+            }}
           >
-            ルームに戻る
-          </Button>
-        </Paper>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <AutoAwesomeIcon sx={{ color: '#f59e0b' }} />
+              <Typography variant="h6" fontWeight="bold">
+                進行中のルームがあります
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {activeRoom.room_name}
+            </Typography>
+            <Button
+              fullWidth
+              variant="contained"
+              color="warning"
+              size="large"
+              onClick={handleRejoinRoom}
+              startIcon={<PlayArrowIcon />}
+              sx={{ py: 1.5 }}
+            >
+              ルームに戻る
+            </Button>
+          </Paper>
+        </Slide>
       )}
 
       {/* 過去のルーム */}
-      {pastRooms.length > 0 && (
-        <Paper elevation={3} sx={{ p: 3, mb: 3, bgcolor: 'info.light' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <HistoryIcon sx={{ mr: 1 }} />
-            <Typography variant="h6" fontWeight="bold">
-              過去のルーム
-            </Typography>
-          </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            クリックして質問を再利用できます
-          </Typography>
-          {pastRooms.map((room) => (
-            <Card
-              key={room.id}
-              sx={{
-                mb: 1,
-                cursor: 'pointer',
-                '&:hover': {
-                  bgcolor: 'action.hover'
-                }
-              }}
-              onClick={() => loadRoomQuestions(room.id, room.room_name)}
-            >
-              <CardContent sx={{ py: 1.5 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box>
-                    <Typography variant="body1" fontWeight="bold">
-                      {room.room_name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(room.created_at).toLocaleDateString('ja-JP')} · {room.question_count}問
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          ))}
+      {isLoadingPastRooms ? (
+        <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+          <Skeleton variant="text" width={150} height={32} sx={{ mb: 2 }} />
+          <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2, mb: 1 }} />
+          <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2 }} />
         </Paper>
+      ) : pastRooms.length > 0 && (
+        <Fade in timeout={600}>
+          <Paper
+            elevation={2}
+            sx={{
+              p: 3,
+              mb: 3,
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <HistoryIcon sx={{ mr: 1, color: 'primary.main' }} />
+              <Typography variant="h6" fontWeight="bold">
+                過去のルーム
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              タップして質問を再利用
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {pastRooms.map((room, index) => (
+                <Grow in timeout={300 + index * 100} key={room.id}>
+                  <Card
+                    sx={{
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        transform: 'translateX(8px)',
+                      },
+                      '&:active': {
+                        transform: 'scale(0.98)',
+                      },
+                    }}
+                    onClick={() => loadRoomQuestions(room.id, room.room_name)}
+                  >
+                    <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box>
+                          <Typography variant="body1" fontWeight="600">
+                            {room.room_name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(room.created_at).toLocaleDateString('ja-JP')} · {room.question_count}問
+                          </Typography>
+                        </Box>
+                        <PlayArrowIcon sx={{ color: 'text.secondary', opacity: 0.5 }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grow>
+              ))}
+            </Box>
+          </Paper>
+        </Fade>
       )}
 
-      <Paper elevation={3} sx={{ p: 3 }}>
-        <TextField
-          fullWidth
-          label="主催者の名前"
-          value={hostNickname}
-          onChange={(e) => setHostNickname(e.target.value)}
-          placeholder="例：たろう"
-          sx={{ mb: 2 }}
-          required
-        />
-        <TextField
-          fullWidth
-          label="ルーム名"
-          value={roomName}
-          onChange={(e) => setRoomName(e.target.value)}
-          placeholder="例：新年会ゲーム"
-          sx={{ mb: 3 }}
-        />
-        {questions.map((question, index) => (
-          <Box key={index} sx={{ mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                お題 {index + 1}
-              </Typography>
-              {questions.length > 1 && (
-                <IconButton
-                  color="error"
-                  size="small"
-                  onClick={() => removeQuestion(index)}
+      {/* メインフォーム */}
+      <Fade in timeout={700}>
+        <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
+          <TextField
+            fullWidth
+            label="あなたの名前"
+            value={hostNickname}
+            onChange={(e) => setHostNickname(e.target.value)}
+            placeholder="例：たろう"
+            sx={{ mb: 2 }}
+            required
+            InputProps={{
+              sx: { fontSize: '1.1rem' }
+            }}
+          />
+          <TextField
+            fullWidth
+            label="ルーム名（任意）"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            placeholder="例：新年会ゲーム"
+            sx={{ mb: 3 }}
+          />
+
+          <Divider sx={{ my: 3, borderColor: 'rgba(102, 126, 234, 0.2)' }}>
+            <Typography variant="body2" color="text.secondary" sx={{ px: 2 }}>
+              お題を入力
+            </Typography>
+          </Divider>
+
+          {questions.map((question, index) => (
+            <Fade in timeout={300} key={index}>
+              <Box
+                sx={{
+                  mb: 3,
+                  p: 2,
+                  borderRadius: 2,
+                  background: 'rgba(102, 126, 234, 0.05)',
+                  border: '1px solid rgba(102, 126, 234, 0.1)',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Box
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      mr: 1.5,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ color: 'white', fontWeight: 700 }}>
+                      {index + 1}
+                    </Typography>
+                  </Box>
+                  <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                    お題 {index + 1}
+                  </Typography>
+                  {questions.length > 1 && (
+                    <IconButton
+                      color="error"
+                      size="small"
+                      onClick={() => removeQuestion(index)}
+                      sx={{
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          transform: 'rotate(90deg)',
+                        },
+                      }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  )}
+                </Box>
+
+                <TextField
+                  fullWidth
+                  label="質問"
+                  multiline
+                  rows={2}
+                  value={question.questionText}
+                  onChange={(e) => updateQuestion(index, 'questionText', e.target.value)}
+                  placeholder="例：好きな季節は？"
+                  sx={{ mb: 2 }}
+                />
+
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <TextField
+                    fullWidth
+                    label="選択肢 A"
+                    value={question.choiceA}
+                    onChange={(e) => updateQuestion(index, 'choiceA', e.target.value)}
+                    placeholder="例：春"
+                  />
+                  <TextField
+                    fullWidth
+                    label="選択肢 B"
+                    value={question.choiceB}
+                    onChange={(e) => updateQuestion(index, 'choiceB', e.target.value)}
+                    placeholder="例：秋"
+                  />
+                </Box>
+              </Box>
+            </Fade>
+          ))}
+
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={addQuestion}
+            sx={{
+              mb: 3,
+              borderStyle: 'dashed',
+              '&:hover': {
+                borderStyle: 'dashed',
+              },
+            }}
+          >
+            お題を追加
+          </Button>
+
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handleCreateRoom}
+            disabled={!isValid || isCreating}
+            startIcon={isCreating ? <CircularProgress size={20} color="inherit" /> : <AutoAwesomeIcon />}
+            sx={{
+              py: 2,
+              fontSize: '1.1rem',
+            }}
+          >
+            {isCreating ? '作成中...' : 'ルームを作成'}
+          </Button>
+
+          {error && (
+            <Fade in>
+              <Box
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  borderRadius: 2,
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                }}
+              >
+                <Typography variant="body2" color="error">
+                  {error}
+                </Typography>
+              </Box>
+            </Fade>
+          )}
+
+          {roomUrl && (
+            <Grow in>
+              <Box
+                sx={{
+                  mt: 3,
+                  p: 3,
+                  borderRadius: 3,
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%)',
+                  border: '2px solid rgba(16, 185, 129, 0.3)',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <AutoAwesomeIcon sx={{ color: '#10b981' }} />
+                  <Typography variant="h6" fontWeight="bold" sx={{ color: '#059669' }}>
+                    ルーム作成完了！
+                  </Typography>
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  下のURLを参加者に共有してください
+                </Typography>
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    mb: 2,
+                    wordBreak: 'break-all',
+                    fontSize: '0.875rem',
+                    fontFamily: 'monospace',
+                  }}
                 >
-                  <DeleteIcon />
-                </IconButton>
-              )}
-            </Box>
-
-            <TextField
-              fullWidth
-              label="質問"
-              multiline
-              rows={2}
-              value={question.questionText}
-              onChange={(e) => updateQuestion(index, 'questionText', e.target.value)}
-              placeholder="例：好きな季節は？"
-              sx={{ mb: 2 }}
-            />
-
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <TextField
-                fullWidth
-                label="選択肢 A"
-                value={question.choiceA}
-                onChange={(e) => updateQuestion(index, 'choiceA', e.target.value)}
-                placeholder="例：春"
-              />
-              <TextField
-                fullWidth
-                label="選択肢 B"
-                value={question.choiceB}
-                onChange={(e) => updateQuestion(index, 'choiceB', e.target.value)}
-                placeholder="例：秋"
-              />
-            </Box>
-
-            {index < questions.length - 1 && <Divider sx={{ mt: 3 }} />}
-          </Box>
-        ))}
-
-        <Button
-          fullWidth
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={addQuestion}
-          sx={{ mb: 2 }}
-        >
-          お題を追加
-        </Button>
-
-        <Button
-          fullWidth
-          variant="contained"
-          size="large"
-          onClick={handleCreateRoom}
-          disabled={!isValid || isCreating}
-          sx={{ py: 1.5 }}
-        >
-          {isCreating ? <CircularProgress size={24} /> : 'ルームを作成'}
-        </Button>
-
-        {error && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
-            <Typography variant="body2" color="error.dark">
-              {error}
-            </Typography>
-          </Box>
-        )}
-
-        {roomUrl && (
-          <Box sx={{ mt: 3, p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
-            <Typography variant="body2" gutterBottom fontWeight="bold">
-              ルームURL:
-            </Typography>
-            <Typography variant="body2" sx={{ wordBreak: 'break-all', mb: 2 }}>
-              {roomUrl}
-            </Typography>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={() => {
-                navigator.clipboard.writeText(roomUrl)
-                alert('URLをコピーしました')
-              }}
-              sx={{ mr: 1 }}
-            >
-              URLをコピー
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => {
-                const roomId = roomUrl.split('/room/')[1]?.split('/')[0]
-                if (roomId) {
-                  router.push(`/room/${roomId}/answer`)
-                }
-              }}
-            >
-              ルームへ移動
-            </Button>
-          </Box>
-        )}
-      </Paper>
+                  {roomUrl}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    startIcon={<ContentCopyIcon />}
+                    onClick={handleCopyUrl}
+                    sx={{ flex: 1 }}
+                  >
+                    {copied ? 'コピーしました！' : 'URLをコピー'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<PlayArrowIcon />}
+                    onClick={() => {
+                      const roomId = roomUrl.split('/room/')[1]?.split('/')[0]
+                      if (roomId) {
+                        router.push(`/room/${roomId}/answer`)
+                      }
+                    }}
+                    sx={{ flex: 1 }}
+                  >
+                    ルームへ移動
+                  </Button>
+                </Box>
+              </Box>
+            </Grow>
+          )}
+        </Paper>
+      </Fade>
     </Container>
   )
 }

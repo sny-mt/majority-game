@@ -2,10 +2,33 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Container, Typography, Box, Paper, Button, CircularProgress, Chip, Dialog, DialogTitle, DialogContent, IconButton, Snackbar, Alert } from '@mui/material'
+import {
+  Container,
+  Typography,
+  Box,
+  Paper,
+  Button,
+  CircularProgress,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  Snackbar,
+  Alert,
+  Fade,
+  Grow,
+  Skeleton,
+  LinearProgress
+} from '@mui/material'
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
 import CloseIcon from '@mui/icons-material/Close'
-import ResultAnimation from '@/components/ResultAnimation'
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
+import GroupsIcon from '@mui/icons-material/Groups'
+import NavigateNextIcon from '@mui/icons-material/NavigateNext'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import CelebrationIcon from '@mui/icons-material/Celebration'
+import StarIcon from '@mui/icons-material/Star'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { aggregateAnswers, type AnswerGroup } from '@/lib/utils/aggregation'
@@ -41,11 +64,9 @@ export default function ResultPage() {
   useEffect(() => {
     const initializeResult = async () => {
       try {
-        // プレイヤーIDを取得
         const pid = getOrCreatePlayerId()
         setPlayerId(pid)
 
-        // ルーム情報を取得
         const { data: roomData, error: roomError } = await supabase
           .from('rooms')
           .select('*')
@@ -55,10 +76,8 @@ export default function ResultPage() {
         if (roomError) throw roomError
         setRoom(roomData)
 
-        // 主催者かチェック
         setIsHost(roomData.host_player_id === pid)
 
-        // 現在の質問を取得
         const { data: questionData, error: questionError } = await supabase
           .from('questions')
           .select('*')
@@ -68,7 +87,6 @@ export default function ResultPage() {
 
         if (questionError) throw questionError
 
-        // 全質問数を取得
         const { count } = await supabase
           .from('questions')
           .select('*', { count: 'exact', head: true })
@@ -76,7 +94,6 @@ export default function ResultPage() {
 
         setTotalQuestions(count || 0)
 
-        // 回答を取得
         const { data: answersData, error: answersError } = await supabase
           .from('answers')
           .select('*')
@@ -84,7 +101,6 @@ export default function ResultPage() {
 
         if (answersError) throw answersError
 
-        // プレイヤー情報を取得（スコア降順、同点の場合は参加日時昇順）
         const { data: playersData, error: playersError } = await supabase
           .from('players')
           .select('*')
@@ -94,7 +110,6 @@ export default function ResultPage() {
 
         if (playersError) throw playersError
 
-        // 回答を集計
         const answerGroups = aggregateAnswers(
           answersData,
           playersData,
@@ -102,53 +117,43 @@ export default function ResultPage() {
           questionData.choice_b
         )
 
-        // 多数派の回答を取得
-        const majorityGroup = answerGroups.find(group => group.isMajority)
-        const majorityAnswer = majorityGroup?.answer || ''
+        // 同率の場合も含め、全てのマジョリティグループを取得
+        const majorityGroups = answerGroups.filter(group => group.isMajority)
+        const majorityAnswers = majorityGroups.map(group => group.answer)
 
-        // 予想が当たったプレイヤーを計算してスコアを更新
         let currentPlayerGotItRight = false
-        console.log('Majority answer:', majorityAnswer)
-        console.log('Current player ID:', pid)
 
-        if (majorityAnswer) {
-          // 全ての回答を一括で更新（まだ採点されていない場合のみ）
+        if (majorityAnswers.length > 0) {
           const updatePromises = answersData.map(async (answer) => {
-            // 既に採点済みの場合はスキップ
             if (answer.is_correct_prediction !== false || answer.points_earned !== 0) {
-              console.log(`Answer ${answer.id} already scored, skipping`)
-              // ローカルデータは更新
               if (answer.player_id === pid && answer.is_correct_prediction) {
                 currentPlayerGotItRight = true
               }
               return
             }
 
-            // 予想と多数派回答を比較（完全一致または選択肢の場合は含まれているかチェック）
             const prediction = answer.prediction || ''
             let isCorrect = false
 
-            // 完全一致の場合
-            if (prediction === majorityAnswer) {
-              isCorrect = true
-            }
-            // 選択肢A/Bの場合：多数派回答に (A) や (B) が含まれているかチェック
-            else if (prediction === 'A' && majorityAnswer.includes('(A)')) {
-              isCorrect = true
-            }
-            else if (prediction === 'B' && majorityAnswer.includes('(B)')) {
-              isCorrect = true
-            }
-            // 自由記述の場合：多数派回答に含まれているかチェック
-            else if (prediction.length > 1 && majorityAnswer.includes(prediction)) {
-              isCorrect = true
+            // 複数のマジョリティ回答のいずれかに一致すれば正解
+            for (const majorityAnswer of majorityAnswers) {
+              if (prediction === majorityAnswer) {
+                isCorrect = true
+                break
+              } else if (prediction === 'A' && majorityAnswer.includes('(A)')) {
+                isCorrect = true
+                break
+              } else if (prediction === 'B' && majorityAnswer.includes('(B)')) {
+                isCorrect = true
+                break
+              } else if (prediction.length > 1 && majorityAnswer.includes(prediction)) {
+                isCorrect = true
+                break
+              }
             }
 
             const points = isCorrect ? 10 : 0
 
-            console.log(`Player ${answer.player_id}: prediction="${prediction}", majority="${majorityAnswer}", correct=${isCorrect}`)
-
-            // answersテーブルを更新
             await supabase
               .from('answers')
               .update({
@@ -157,24 +162,18 @@ export default function ResultPage() {
               })
               .eq('id', answer.id)
 
-            // ローカルのanswerデータを更新
             answer.is_correct_prediction = isCorrect
             answer.points_earned = points
 
-            // 現在のプレイヤーが正解したかチェック
             if (answer.player_id === pid && isCorrect) {
               currentPlayerGotItRight = true
-              console.log('🎯 Current player got it right!')
             }
           })
 
-          // 全ての更新を待つ
           await Promise.all(updatePromises)
 
-          // プレイヤーのスコアを全回答から再計算（このルームの質問のみ）
           const playerScores = new Map<string, number>()
 
-          // このルームの全質問IDを取得
           const { data: roomQuestionsData } = await supabase
             .from('questions')
             .select('id')
@@ -183,7 +182,6 @@ export default function ResultPage() {
           if (roomQuestionsData) {
             const questionIds = roomQuestionsData.map(q => q.id)
 
-            // このルームの質問に対する全プレイヤーの回答を取得してスコアを計算
             const { data: allAnswersData } = await supabase
               .from('answers')
               .select('player_id, points_earned')
@@ -191,13 +189,11 @@ export default function ResultPage() {
               .in('question_id', questionIds)
 
             if (allAnswersData) {
-              // 各プレイヤーの獲得ポイントを合計
               for (const answer of allAnswersData) {
                 const currentScore = playerScores.get(answer.player_id) || 0
                 playerScores.set(answer.player_id, currentScore + (answer.points_earned || 0))
               }
 
-              // 各プレイヤーのスコアを更新
               const scoreUpdatePromises = Array.from(playerScores.entries()).map(async ([playerId, totalScore]) => {
                 await supabase
                   .from('players')
@@ -211,7 +207,6 @@ export default function ResultPage() {
           }
         }
 
-        // 更新されたプレイヤーデータを再取得して確実に最新の状態にする（スコア降順、同点の場合は参加日時昇順）
         const { data: updatedPlayersData } = await supabase
           .from('players')
           .select('*')
@@ -225,7 +220,6 @@ export default function ResultPage() {
 
         setAnswers(answersData)
         setCurrentPlayerCorrect(currentPlayerGotItRight)
-        console.log('Setting currentPlayerCorrect to:', currentPlayerGotItRight)
 
         setResult({
           id: questionData.id,
@@ -246,25 +240,17 @@ export default function ResultPage() {
     initializeResult()
   }, [roomId])
 
-  // 予想的中時のお祝いアニメーション
   useEffect(() => {
-    console.log('Confetti check:', { currentPlayerCorrect, isLoading })
-
     if (currentPlayerCorrect && !isLoading && typeof window !== 'undefined') {
-      console.log('🎉 Triggering confetti!')
-
-      // クライアントサイドでのみconfettiをインポート
       import('canvas-confetti').then((confettiModule) => {
         const confetti = confettiModule.default
 
-        // 即座に紙吹雪を発射
         confetti({
           particleCount: 100,
           spread: 70,
           origin: { y: 0.6 }
         })
 
-        // 連続で紙吹雪を発射
         const duration = 3000
         const animationEnd = Date.now() + duration
         const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 }
@@ -282,13 +268,11 @@ export default function ResultPage() {
 
           const particleCount = 50 * (timeLeft / duration)
 
-          // 左から
           confetti({
             ...defaults,
             particleCount,
             origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
           })
-          // 右から
           confetti({
             ...defaults,
             particleCount,
@@ -296,17 +280,14 @@ export default function ResultPage() {
           })
         }, 250)
 
-        // クリーンアップ用にタイマーIDを保存
         return () => clearInterval(interval)
       })
     }
   }, [currentPlayerCorrect, isLoading])
 
-  // Realtime購読
   useEffect(() => {
     if (!room) return
 
-    // ルームステータスの変更を購読
     const roomChannel = supabase
       .channel(`room_result:${roomId}`)
       .on(
@@ -321,19 +302,15 @@ export default function ResultPage() {
           const updatedRoom = payload.new as Room
           setRoom(updatedRoom)
 
-          // ステータスが'answering'に戻ったら回答ページへ
           if (updatedRoom.status === 'answering') {
-            // 主催者は即座に遷移
             if (isHost) {
               router.push(`/room/${roomId}/answer`)
             } else {
-              // 参加者は3秒後に遷移
               setShowTransitionSnackbar(true)
               setCountdown(3)
             }
           }
 
-          // ステータスが'finished'になったらサマリーページへ
           if (updatedRoom.status === 'finished') {
             router.push(`/room/${roomId}/summary`)
           }
@@ -346,7 +323,6 @@ export default function ResultPage() {
     }
   }, [room, roomId, router, isHost])
 
-  // カウントダウンと自動遷移
   useEffect(() => {
     if (!showTransitionSnackbar) return
 
@@ -356,7 +332,6 @@ export default function ResultPage() {
       }, 1000)
       return () => clearTimeout(timer)
     } else {
-      // カウントダウン終了後、遷移
       router.push(`/room/${roomId}/answer`)
     }
   }, [showTransitionSnackbar, countdown, router, roomId])
@@ -377,7 +352,6 @@ export default function ResultPage() {
 
       if (error) throw error
 
-      console.log('Moving to next question')
       router.push(`/room/${roomId}/answer`)
     } catch (error) {
       console.error('Error moving to next question:', error)
@@ -396,7 +370,6 @@ export default function ResultPage() {
 
       if (error) throw error
 
-      console.log('Game finished')
       router.push(`/room/${roomId}/summary`)
     } catch (error) {
       console.error('Error finishing game:', error)
@@ -418,9 +391,14 @@ export default function ResultPage() {
   if (isLoading) {
     return (
       <Container maxWidth="md">
-        <Box sx={{ mt: 8, textAlign: 'center' }}>
-          <CircularProgress />
-          <Typography sx={{ mt: 2 }}>集計中...</Typography>
+        <Box sx={{ mt: 4 }}>
+          <Paper elevation={3} sx={{ p: 4 }}>
+            <Skeleton variant="text" width="40%" height={32} sx={{ mx: 'auto', mb: 2 }} />
+            <Skeleton variant="text" width="80%" height={48} sx={{ mx: 'auto', mb: 4 }} />
+            <Skeleton variant="rectangular" height={150} sx={{ borderRadius: 3, mb: 3 }} />
+            <Skeleton variant="rectangular" height={100} sx={{ borderRadius: 2, mb: 2 }} />
+            <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2 }} />
+          </Paper>
         </Box>
       </Container>
     )
@@ -443,127 +421,107 @@ export default function ResultPage() {
   const isLastQuestion = room.current_question_index >= totalQuestions - 1
 
   return (
-    <Container maxWidth="md" sx={{ pb: 4 }}>
-      <Box sx={{ mt: 3, mb: 3 }}>
-        <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
-          質問 {room.current_question_index + 1} / {totalQuestions}
-        </Typography>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
-          集計結果
-        </Typography>
-        <Typography variant="h6" gutterBottom align="center" color="text.secondary">
-          {result.questionText}
-        </Typography>
-      </Box>
+    <Container maxWidth="md" sx={{ pb: 4, pt: 2 }}>
+      {/* ヘッダー */}
+      <Fade in timeout={500}>
+        <Box sx={{ mb: 3, textAlign: 'center' }}>
+          <Chip
+            label={`質問 ${room.current_question_index + 1} / ${totalQuestions}`}
+            size="small"
+            sx={{
+              mb: 2,
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)',
+              border: '1px solid rgba(102, 126, 234, 0.3)',
+            }}
+          />
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              mb: 1,
+            }}
+          >
+            集計結果
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {result.questionText}
+          </Typography>
+        </Box>
+      </Fade>
 
       {/* 予想的中メッセージ */}
       {currentPlayerCorrect && (
-        <Paper
-          elevation={6}
-          sx={{
-            p: 3,
-            mb: 3,
-            bgcolor: 'success.main',
-            color: 'white',
-            textAlign: 'center',
-            '@keyframes pulse': {
-              '0%, 100%': {
-                transform: 'scale(1)',
+        <Grow in timeout={800}>
+          <Paper
+            elevation={6}
+            sx={{
+              p: 3,
+              mb: 3,
+              background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+              color: 'white',
+              textAlign: 'center',
+              borderRadius: 3,
+              animation: 'pulse 1s ease-in-out 3',
+              '@keyframes pulse': {
+                '0%, 100%': { transform: 'scale(1)' },
+                '50%': { transform: 'scale(1.02)' },
               },
-              '50%': {
-                transform: 'scale(1.05)',
-              },
-            },
-            animation: 'pulse 1s ease-in-out 3'
-          }}
-        >
-          <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
-            🎉 おめでとうございます！ 🎉
-          </Typography>
-          <Typography variant="h6">
-            予想的中！ +10ポイント獲得！
-          </Typography>
-        </Paper>
+            }}
+          >
+            <CelebrationIcon sx={{ fontSize: 48, mb: 1 }} />
+            <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
+              おめでとうございます！
+            </Typography>
+            <Typography variant="h6">
+              予想的中！ +10ポイント獲得！
+            </Typography>
+          </Paper>
+        </Grow>
       )}
 
       {/* マジョリティ回答 */}
       {result.answerGroups
         .filter(group => group.isMajority)
         .map((group, index) => (
-          <Paper
-            key={index}
-            elevation={4}
-            sx={{
-              p: 4,
-              mb: 3,
-              bgcolor: 'success.main',
-              color: 'white',
-              textAlign: 'center'
-            }}
-          >
-            <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>
-              マジョリティ回答
-            </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 'bold', my: 2 }}>
-              {group.answer}
-            </Typography>
-            <Typography variant="h6">
-              {group.count}人 ({group.percentage.toFixed(1)}%)
-            </Typography>
-            <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {group.players.map((playerName, idx) => {
-                const player = players.find(p => p.nickname === playerName)
-                const answer = player ? answers.find(a => a.player_id === player.id) : null
-                const hasComment = answer && answer.comment
-
-                return (
-                  <Chip
-                    key={idx}
-                    label={playerName}
-                    icon={hasComment ? <ChatBubbleIcon /> : undefined}
-                    onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id) : undefined}
-                    sx={{
-                      fontSize: '1rem',
-                      py: 2,
-                      cursor: hasComment ? 'pointer' : 'default',
-                      '&:hover': hasComment ? {
-                        bgcolor: 'rgba(255, 255, 255, 0.3)'
-                      } : {}
-                    }}
-                  />
-                )
-              })}
-            </Box>
-          </Paper>
-        ))}
-
-      {/* その他の回答 */}
-      {result.answerGroups.filter(group => !group.isMajority).length > 0 && (
-        <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            その他の回答
-          </Typography>
-          {result.answerGroups
-            .filter(group => !group.isMajority)
-            .map((group, index) => (
-              <Box
-                key={index}
-                sx={{
-                  mb: 2,
-                  p: 2,
-                  bgcolor: 'grey.100',
-                  borderRadius: 1
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                    {group.answer}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {group.count}人 ({group.percentage.toFixed(1)}%)
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+          <Grow in timeout={600} key={index}>
+            <Paper
+              elevation={4}
+              sx={{
+                p: 4,
+                mb: 3,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                textAlign: 'center',
+                borderRadius: 3,
+                position: 'relative',
+                overflow: 'hidden',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'radial-gradient(circle at 20% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)',
+                },
+              }}
+            >
+              <Box sx={{ position: 'relative', zIndex: 1 }}>
+                <GroupsIcon sx={{ fontSize: 40, mb: 1, opacity: 0.9 }} />
+                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, opacity: 0.9 }}>
+                  マジョリティ回答
+                </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 'bold', my: 2 }}>
+                  {group.answer}
+                </Typography>
+                <Typography variant="h6" sx={{ opacity: 0.9 }}>
+                  {group.count}人 ({group.percentage.toFixed(1)}%)
+                </Typography>
+                <Box sx={{ mt: 3, display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
                   {group.players.map((playerName, idx) => {
                     const player = players.find(p => p.nickname === playerName)
                     const answer = player ? answers.find(a => a.player_id === player.id) : null
@@ -574,176 +532,301 @@ export default function ResultPage() {
                         key={idx}
                         label={playerName}
                         icon={hasComment ? <ChatBubbleIcon /> : undefined}
-                        size="small"
                         onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id) : undefined}
                         sx={{
+                          fontSize: '0.95rem',
+                          py: 2.5,
+                          background: 'rgba(255, 255, 255, 0.2)',
+                          color: 'white',
                           cursor: hasComment ? 'pointer' : 'default',
+                          transition: 'all 0.2s',
                           '&:hover': hasComment ? {
-                            bgcolor: 'action.hover'
-                          } : {}
+                            background: 'rgba(255, 255, 255, 0.3)',
+                            transform: 'scale(1.05)',
+                          } : {},
+                          '& .MuiChip-icon': {
+                            color: 'white',
+                          },
                         }}
                       />
                     )
                   })}
                 </Box>
               </Box>
-            ))}
-        </Paper>
+            </Paper>
+          </Grow>
+        ))}
+
+      {/* その他の回答 */}
+      {result.answerGroups.filter(group => !group.isMajority).length > 0 && (
+        <Fade in timeout={700}>
+          <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
+            <Typography variant="h6" gutterBottom fontWeight="bold">
+              その他の回答
+            </Typography>
+            {result.answerGroups
+              .filter(group => !group.isMajority)
+              .map((group, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    mb: 2,
+                    p: 2,
+                    borderRadius: 2,
+                    background: 'rgba(102, 126, 234, 0.05)',
+                    border: '1px solid rgba(102, 126, 234, 0.1)',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {group.answer}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {group.count}人 ({group.percentage.toFixed(1)}%)
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={group.percentage}
+                    sx={{
+                      height: 6,
+                      borderRadius: 3,
+                      bgcolor: 'rgba(102, 126, 234, 0.1)',
+                      mb: 1.5,
+                      '& .MuiLinearProgress-bar': {
+                        borderRadius: 3,
+                        background: 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)',
+                      },
+                    }}
+                  />
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {group.players.map((playerName, idx) => {
+                      const player = players.find(p => p.nickname === playerName)
+                      const answer = player ? answers.find(a => a.player_id === player.id) : null
+                      const hasComment = answer && answer.comment
+
+                      return (
+                        <Chip
+                          key={idx}
+                          label={playerName}
+                          icon={hasComment ? <ChatBubbleIcon /> : undefined}
+                          size="small"
+                          onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id) : undefined}
+                          sx={{
+                            cursor: hasComment ? 'pointer' : 'default',
+                            transition: 'all 0.2s',
+                            '&:hover': hasComment ? { transform: 'scale(1.05)' } : {},
+                          }}
+                        />
+                      )
+                    })}
+                  </Box>
+                </Box>
+              ))}
+          </Paper>
+        </Fade>
       )}
 
       {/* 予想的中プレイヤー */}
       {answers.filter(a => a.is_correct_prediction).length > 0 && (
-        <Paper elevation={3} sx={{ p: 3, mb: 3, bgcolor: 'info.light' }}>
-          <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-            🎯 予想的中！（+10pt）
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {answers
-              .filter(a => a.is_correct_prediction)
-              .map(answer => {
-                const player = players.find(p => p.id === answer.player_id)
-                return player ? (
-                  <Chip
-                    key={answer.id}
-                    label={player.nickname}
-                    color="success"
-                    sx={{ fontWeight: 'bold' }}
-                  />
-                ) : null
-              })}
-          </Box>
-        </Paper>
+        <Fade in timeout={800}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 3,
+              mb: 3,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.1) 100%)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <CheckCircleIcon sx={{ color: '#10b981' }} />
+              <Typography variant="h6" fontWeight="bold">
+                予想的中！（+10pt）
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {answers
+                .filter(a => a.is_correct_prediction)
+                .map(answer => {
+                  const player = players.find(p => p.id === answer.player_id)
+                  return player ? (
+                    <Chip
+                      key={answer.id}
+                      label={player.nickname}
+                      icon={<StarIcon />}
+                      sx={{
+                        fontWeight: 600,
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(52, 211, 153, 0.2) 100%)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        '& .MuiChip-icon': {
+                          color: '#10b981',
+                        },
+                      }}
+                    />
+                  ) : null
+                })}
+            </Box>
+          </Paper>
+        </Fade>
       )}
 
       {/* リーダーボード */}
-      <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-          🏆 現在の順位
-        </Typography>
-        {players.map((player, index) => {
-          const isCurrentPlayer = player.id === playerId
+      <Fade in timeout={900}>
+        <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <EmojiEventsIcon sx={{ color: '#f59e0b' }} />
+            <Typography variant="h6" fontWeight="bold">
+              現在の順位
+            </Typography>
+          </Box>
+          {players.map((player, index) => {
+            const isCurrentPlayer = player.id === playerId
 
-          // 同点を考慮した順位計算
-          let rank = 1
-          for (let i = 0; i < index; i++) {
-            if (players[i].score > player.score) {
-              rank++
+            let rank = 1
+            for (let i = 0; i < index; i++) {
+              if (players[i].score > player.score) {
+                rank++
+              }
             }
-          }
 
-          const isFirstPlace = rank === 1
+            const isFirstPlace = rank === 1
 
-          return (
-            <Box
-              key={player.id}
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                p: 2,
-                mb: 1,
-                bgcolor: isCurrentPlayer
-                  ? 'primary.light'
-                  : isFirstPlace
-                  ? 'warning.light'
-                  : 'grey.100',
-                borderRadius: 1,
-                border: 2,
-                borderColor: isCurrentPlayer
-                  ? 'primary.main'
-                  : isFirstPlace
-                  ? 'warning.main'
-                  : 'transparent',
-                boxShadow: isCurrentPlayer ? 3 : 0
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            return (
+              <Box
+                key={player.id}
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  p: 2,
+                  mb: 1,
+                  borderRadius: 2,
+                  background: isCurrentPlayer
+                    ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)'
+                    : isFirstPlace
+                    ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)'
+                    : 'rgba(0, 0, 0, 0.02)',
+                  border: isCurrentPlayer
+                    ? '2px solid rgba(102, 126, 234, 0.4)'
+                    : isFirstPlace
+                    ? '2px solid rgba(245, 158, 11, 0.4)'
+                    : '2px solid transparent',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    transform: 'translateX(4px)',
+                  },
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      background: isFirstPlace
+                        ? 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)'
+                        : 'rgba(102, 126, 234, 0.1)',
+                      color: isFirstPlace ? 'white' : 'text.primary',
+                    }}
+                  >
+                    {rank}
+                  </Box>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      fontWeight: isCurrentPlayer || isFirstPlace ? 700 : 400,
+                    }}
+                  >
+                    {player.nickname}
+                    {isCurrentPlayer && (
+                      <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                        (あなた)
+                      </Typography>
+                    )}
+                  </Typography>
+                </Box>
                 <Typography
                   variant="h6"
                   sx={{
-                    fontWeight: 'bold',
-                    minWidth: '30px',
-                    color: isCurrentPlayer ? 'primary.dark' : 'inherit'
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
                   }}
                 >
-                  {rank}位
-                </Typography>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    fontWeight: isCurrentPlayer || isFirstPlace ? 'bold' : 'normal',
-                    color: isCurrentPlayer ? 'primary.dark' : 'inherit'
-                  }}
-                >
-                  {player.nickname}
-                  {isCurrentPlayer && ' (あなた)'}
+                  {player.score}pt
                 </Typography>
               </Box>
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 'bold',
-                  color: isCurrentPlayer ? 'primary.dark' : 'primary.main'
-                }}
-              >
-                {player.score}pt
-              </Typography>
-            </Box>
-          )
-        })}
-      </Paper>
+            )
+          })}
+        </Paper>
+      </Fade>
 
-      {/* 問題ナビゲーション */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
-        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
-          📚 問題ナビゲーション
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {room.current_question_index > 0 && (
+      {/* ナビゲーション */}
+      {room.current_question_index > 0 && (
+        <Fade in timeout={950}>
+          <Paper elevation={2} sx={{ p: 2, mb: 3, borderRadius: 2 }}>
             <Button
               variant="outlined"
-              size="medium"
+              fullWidth
               onClick={() => router.push(`/room/${roomId}/summary`)}
-              sx={{ flex: 1, minWidth: '140px' }}
             >
-              📊 全ての結果を見る
+              全ての結果を見る
             </Button>
-          )}
-        </Box>
-      </Paper>
+          </Paper>
+        </Fade>
+      )}
 
-      {/* 主催者用コントロール */}
+      {/* 主催者コントロール */}
       {isHost && (
-        <Paper elevation={3} sx={{ p: 3, bgcolor: 'warning.light' }}>
-          <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-            主催者コントロール
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            {!isLastQuestion ? (
-              <Button
-                fullWidth
-                variant="contained"
-                color="primary"
-                size="large"
-                onClick={handleNextQuestion}
-                sx={{ py: 1.5 }}
-              >
-                次の質問へ進む
-              </Button>
-            ) : (
-              <Button
-                fullWidth
-                variant="contained"
-                color="success"
-                size="large"
-                onClick={handleFinishGame}
-                sx={{ py: 1.5 }}
-              >
-                ゲームを終了する
-              </Button>
-            )}
-          </Box>
-        </Paper>
+        <Fade in timeout={1000}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)',
+              border: '2px solid rgba(245, 158, 11, 0.3)',
+            }}
+          >
+            <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+              主催者コントロール
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              {!isLastQuestion ? (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  onClick={handleNextQuestion}
+                  endIcon={<NavigateNextIcon />}
+                  sx={{ py: 1.5 }}
+                >
+                  次の質問へ
+                </Button>
+              ) : (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  color="success"
+                  size="large"
+                  onClick={handleFinishGame}
+                  startIcon={<EmojiEventsIcon />}
+                  sx={{ py: 1.5 }}
+                >
+                  ゲーム終了
+                </Button>
+              )}
+            </Box>
+          </Paper>
+        </Fade>
       )}
 
       {/* コメントモーダル */}
@@ -752,6 +835,11 @@ export default function ResultPage() {
         onClose={handleCloseComment}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+          },
+        }}
       >
         <DialogTitle>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -769,21 +857,9 @@ export default function ResultPage() {
             elevation={0}
             sx={{
               p: 3,
-              bgcolor: 'grey.100',
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)',
               borderRadius: 2,
-              position: 'relative',
-              '&::before': {
-                content: '""',
-                position: 'absolute',
-                top: -10,
-                left: 20,
-                width: 0,
-                height: 0,
-                borderLeft: '10px solid transparent',
-                borderRight: '10px solid transparent',
-                borderBottom: '10px solid',
-                borderBottomColor: 'grey.100'
-              }
+              border: '1px solid rgba(102, 126, 234, 0.1)',
             }}
           >
             <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
@@ -799,7 +875,18 @@ export default function ResultPage() {
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         sx={{ mt: 8 }}
       >
-        <Alert severity="info" sx={{ width: '100%', fontSize: '1.1rem' }}>
+        <Alert
+          severity="info"
+          sx={{
+            width: '100%',
+            fontSize: '1.1rem',
+            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)',
+            color: 'white',
+            '& .MuiAlert-icon': {
+              color: 'white',
+            },
+          }}
+        >
           {countdown}秒後に次の問題に移動します...
         </Alert>
       </Snackbar>
