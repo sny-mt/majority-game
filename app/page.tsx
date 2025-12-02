@@ -26,6 +26,8 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import GroupsIcon from '@mui/icons-material/Groups'
+import QrCodeIcon from '@mui/icons-material/QrCode'
+import { QRCodeSVG } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateRoomName, validateQuestionText, validateChoice, validateNickname } from '@/lib/utils/validation'
@@ -83,7 +85,8 @@ export default function Home() {
             .eq('id', playerData.room_id)
             .single()
 
-          if (roomData && roomData.status !== 'waiting' && roomData.status !== 'finished') {
+          // waiting以外のルーム（進行中またはfinished）を表示
+          if (roomData && roomData.status !== 'waiting') {
             setActiveRoom(roomData)
           }
         }
@@ -292,6 +295,8 @@ export default function Home() {
       router.push(`/room/${activeRoom.id}/answer`)
     } else if (activeRoom.status === 'showing_result') {
       router.push(`/room/${activeRoom.id}/result`)
+    } else if (activeRoom.status === 'finished') {
+      router.push(`/room/${activeRoom.id}/summary`)
     }
   }
 
@@ -367,7 +372,7 @@ export default function Home() {
         </Box>
       </Fade>
 
-      {/* 進行中のルームに戻る */}
+      {/* 進行中のルームに戻る / 終了したルームの結果を見る */}
       {activeRoom && (
         <Slide direction="down" in timeout={500}>
           <Paper
@@ -375,14 +380,18 @@ export default function Home() {
             sx={{
               p: 3,
               mb: 3,
-              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)',
-              border: '2px solid rgba(245, 158, 11, 0.4)',
+              background: activeRoom.status === 'finished'
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%)'
+                : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)',
+              border: activeRoom.status === 'finished'
+                ? '2px solid rgba(16, 185, 129, 0.4)'
+                : '2px solid rgba(245, 158, 11, 0.4)',
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <AutoAwesomeIcon sx={{ color: '#f59e0b' }} />
+              <AutoAwesomeIcon sx={{ color: activeRoom.status === 'finished' ? '#10b981' : '#f59e0b' }} />
               <Typography variant="h6" fontWeight="bold">
-                進行中のルームがあります
+                {activeRoom.status === 'finished' ? 'ゲームが終了しました' : '進行中のルームがあります'}
               </Typography>
             </Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -391,13 +400,13 @@ export default function Home() {
             <Button
               fullWidth
               variant="contained"
-              color="warning"
+              color={activeRoom.status === 'finished' ? 'success' : 'warning'}
               size="large"
               onClick={handleRejoinRoom}
               startIcon={<PlayArrowIcon />}
               sx={{ py: 1.5 }}
             >
-              ルームに戻る
+              {activeRoom.status === 'finished' ? '最終結果を見る' : 'ルームに戻る'}
             </Button>
           </Paper>
         </Slide>
@@ -642,8 +651,36 @@ export default function Home() {
                   </Typography>
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  下のURLを参加者に共有してください
+                  URLまたはQRコードを参加者に共有してください
                 </Typography>
+
+                {/* QRコード */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    mb: 3,
+                    p: 2,
+                    borderRadius: 2,
+                    background: 'white',
+                  }}
+                >
+                  <QRCodeSVG
+                    value={roomUrl}
+                    size={180}
+                    level="M"
+                    includeMargin
+                    style={{ display: 'block' }}
+                  />
+                </Box>
+
+                {/* URL */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <QrCodeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  <Typography variant="caption" color="text.secondary">
+                    参加用URL
+                  </Typography>
+                </Box>
                 <Box
                   sx={{
                     p: 2,

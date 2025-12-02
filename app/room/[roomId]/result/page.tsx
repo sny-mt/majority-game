@@ -821,7 +821,7 @@ export default function ResultPage() {
                   startIcon={<EmojiEventsIcon />}
                   sx={{ py: 1.5 }}
                 >
-                  ゲーム終了
+                  最終結果を見る
                 </Button>
               )}
             </Box>

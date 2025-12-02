@@ -23,6 +23,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
 import CloseIcon from '@mui/icons-material/Close'
+import FavoriteIcon from '@mui/icons-material/Favorite'
+import PeopleIcon from '@mui/icons-material/People'
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
+import CheckIcon from '@mui/icons-material/Check'
+import ClearIcon from '@mui/icons-material/Clear'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { aggregateAnswers, type AnswerGroup } from '@/lib/utils/aggregation'
@@ -40,6 +45,15 @@ interface QuestionSummary {
   answers: Answer[]
 }
 
+interface SimilarPlayer {
+  playerId: string
+  nickname: string
+  matchCount: number
+  totalQuestions: number
+  matchPercentage: number
+  matchedQuestions: string[]
+}
+
 export default function SummaryPage() {
   const params = useParams()
   const router = useRouter()
@@ -52,6 +66,8 @@ export default function SummaryPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [playerId, setPlayerId] = useState<string>('')
   const [selectedComment, setSelectedComment] = useState<{ playerName: string; comment: string } | null>(null)
+  const [similarPlayers, setSimilarPlayers] = useState<SimilarPlayer[]>([])
+  const [comparePlayer, setComparePlayer] = useState<SimilarPlayer | null>(null)
 
   useEffect(() => {
     const initializeSummary = async () => {
@@ -126,6 +142,56 @@ export default function SummaryPage() {
         ).then(results => results.filter((s): s is QuestionSummary => s !== null))
 
         setQuestionSummaries(summaries)
+
+        // 回答が近かった人を計算
+        const calculateSimilarPlayers = () => {
+          const otherPlayers = (playersData || []).filter(p => p.id !== pid)
+          const myAnswersMap = new Map<string, string>()
+
+          // 自分の回答をマップに格納
+          summaries.forEach(summary => {
+            const myAnswer = summary.answers.find(a => a.player_id === pid)
+            if (myAnswer) {
+              myAnswersMap.set(summary.questionId, myAnswer.answer)
+            }
+          })
+
+          // 各プレイヤーとの一致度を計算
+          const similarityResults: SimilarPlayer[] = otherPlayers.map(player => {
+            const matchedQuestions: string[] = []
+            let matchCount = 0
+
+            summaries.forEach(summary => {
+              const myAnswer = myAnswersMap.get(summary.questionId)
+              const playerAnswer = summary.answers.find(a => a.player_id === player.id)
+
+              if (myAnswer && playerAnswer && myAnswer === playerAnswer.answer) {
+                matchCount++
+                matchedQuestions.push(summary.questionText)
+              }
+            })
+
+            const totalQuestions = summaries.filter(s =>
+              myAnswersMap.has(s.questionId) && s.answers.some(a => a.player_id === player.id)
+            ).length
+
+            return {
+              playerId: player.id,
+              nickname: player.nickname,
+              matchCount,
+              totalQuestions,
+              matchPercentage: totalQuestions > 0 ? (matchCount / totalQuestions) * 100 : 0,
+              matchedQuestions
+            }
+          })
+
+          // 一致数が多い順にソート（1件以上一致のみ）
+          return similarityResults
+            .filter(p => p.matchCount > 0)
+            .sort((a, b) => b.matchCount - a.matchCount || b.matchPercentage - a.matchPercentage)
+        }
+
+        setSimilarPlayers(calculateSimilarPlayers())
         setIsLoading(false)
       } catch (error) {
         console.error('Error initializing summary:', error)
@@ -176,6 +242,43 @@ export default function SummaryPage() {
 
   const handleCloseComment = () => {
     setSelectedComment(null)
+  }
+
+  const handleCompareClick = (similar: SimilarPlayer) => {
+    setComparePlayer(similar)
+  }
+
+  const handleCloseCompare = () => {
+    setComparePlayer(null)
+  }
+
+  // 回答を表示用にフォーマット（A/Bの場合は選択肢名を表示）
+  const formatAnswer = (answer: string | undefined, choiceA: string, choiceB: string) => {
+    if (!answer) return '未回答'
+    if (answer === 'A') return `A: ${choiceA}`
+    if (answer === 'B') return `B: ${choiceB}`
+    return answer
+  }
+
+  // 比較用のデータを取得
+  const getComparisonData = () => {
+    if (!comparePlayer) return []
+
+    return questionSummaries.map(summary => {
+      const myAnswer = summary.answers.find(a => a.player_id === playerId)
+      const theirAnswer = summary.answers.find(a => a.player_id === comparePlayer.playerId)
+      const isMatch = myAnswer && theirAnswer && myAnswer.answer === theirAnswer.answer
+
+      return {
+        questionText: summary.questionText,
+        questionIndex: summary.questionIndex,
+        myAnswer: formatAnswer(myAnswer?.answer, summary.choiceA, summary.choiceB),
+        theirAnswer: formatAnswer(theirAnswer?.answer, summary.choiceA, summary.choiceB),
+        myComment: myAnswer?.comment || null,
+        theirComment: theirAnswer?.comment || null,
+        isMatch
+      }
+    })
   }
 
   if (isLoading) {
@@ -347,6 +450,126 @@ export default function SummaryPage() {
           )
         })}
       </Paper>
+
+      {/* 回答が近かった人（2人以上参加の場合のみ表示） */}
+      {players.length >= 2 && (
+        <Paper
+          elevation={3}
+          sx={{
+            p: 3,
+            mb: 3,
+            background: 'linear-gradient(135deg, rgba(244, 114, 182, 0.1) 0%, rgba(251, 113, 133, 0.1) 100%)',
+            border: '1px solid rgba(244, 114, 182, 0.2)',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <FavoriteIcon sx={{ color: '#ec4899' }} />
+            <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+              あなたと回答が近かった人
+            </Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            同じ回答をした回数が多い人ほど、価値観が近いかも？
+          </Typography>
+          {similarPlayers.length === 0 && (
+            <Typography variant="body2" color="text.secondary">
+              残念！全員と回答が異なりました
+            </Typography>
+          )}
+          {similarPlayers.slice(0, 5).map((similar, index) => {
+            const isTopMatch = index === 0
+            return (
+              <Box
+                key={similar.playerId}
+                onClick={() => handleCompareClick(similar)}
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  p: 2,
+                  mb: 1,
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  background: isTopMatch
+                    ? 'linear-gradient(135deg, rgba(244, 114, 182, 0.2) 0%, rgba(251, 113, 133, 0.2) 100%)'
+                    : 'rgba(255, 255, 255, 0.5)',
+                  border: isTopMatch
+                    ? '2px solid rgba(244, 114, 182, 0.4)'
+                    : '1px solid rgba(0, 0, 0, 0.05)',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    transform: 'translateX(4px)',
+                    boxShadow: '0 4px 12px rgba(244, 114, 182, 0.2)',
+                  },
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      background: isTopMatch
+                        ? 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)'
+                        : 'rgba(244, 114, 182, 0.2)',
+                      color: isTopMatch ? 'white' : '#ec4899',
+                    }}
+                  >
+                    {isTopMatch ? <FavoriteIcon /> : <PeopleIcon fontSize="small" />}
+                  </Box>
+                  <Box>
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        fontWeight: isTopMatch ? 700 : 500,
+                      }}
+                    >
+                      {similar.nickname}
+                      {isTopMatch && (
+                        <Chip
+                          label="ベストマッチ"
+                          size="small"
+                          sx={{
+                            ml: 1,
+                            background: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
+                            color: 'white',
+                            fontWeight: 600,
+                            fontSize: '0.7rem',
+                          }}
+                        />
+                      )}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {similar.matchedQuestions.slice(0, 2).map((q, i) => (
+                        <span key={i}>Q{questionSummaries.findIndex(s => s.questionText === q) + 1}{i < Math.min(similar.matchedQuestions.length, 2) - 1 ? ', ' : ''}</span>
+                      ))}
+                      {similar.matchedQuestions.length > 2 && ` 他${similar.matchedQuestions.length - 2}問`}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 700,
+                      color: '#ec4899',
+                    }}
+                  >
+                    {similar.matchCount}/{similar.totalQuestions}問一致
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {similar.matchPercentage.toFixed(0)}%
+                  </Typography>
+                </Box>
+              </Box>
+            )
+          })}
+        </Paper>
+      )}
 
       {/* 質問別の結果 */}
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
@@ -611,6 +834,140 @@ export default function SummaryPage() {
               {selectedComment?.comment}
             </Typography>
           </Paper>
+        </DialogContent>
+      </Dialog>
+
+      {/* 回答比較モーダル */}
+      <Dialog
+        open={!!comparePlayer}
+        onClose={handleCloseCompare}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CompareArrowsIcon sx={{ color: '#ec4899' }} />
+              <Typography variant="h6">
+                {comparePlayer?.nickname}との回答比較
+              </Typography>
+            </Box>
+            <IconButton onClick={handleCloseCompare} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: 'linear-gradient(135deg, rgba(244, 114, 182, 0.1) 0%, rgba(251, 113, 133, 0.1) 100%)' }}>
+            <Typography variant="body1" sx={{ fontWeight: 600, color: '#ec4899', textAlign: 'center' }}>
+              {comparePlayer?.matchCount}/{comparePlayer?.totalQuestions}問一致 ({comparePlayer?.matchPercentage.toFixed(0)}%)
+            </Typography>
+          </Box>
+
+          {getComparisonData().map((item, index) => (
+            <Box
+              key={index}
+              sx={{
+                mb: 2,
+                p: 2,
+                borderRadius: 2,
+                background: item.isMatch
+                  ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.1) 100%)'
+                  : 'rgba(0, 0, 0, 0.02)',
+                border: item.isMatch
+                  ? '1px solid rgba(16, 185, 129, 0.3)'
+                  : '1px solid rgba(0, 0, 0, 0.05)',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                {item.isMatch ? (
+                  <CheckIcon sx={{ color: '#10b981', fontSize: 20 }} />
+                ) : (
+                  <ClearIcon sx={{ color: '#94a3b8', fontSize: 20 }} />
+                )}
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Q{item.questionIndex + 1}: {item.questionText}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    あなた
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 500,
+                      p: 1,
+                      borderRadius: 1,
+                      background: 'rgba(102, 126, 234, 0.1)',
+                    }}
+                  >
+                    {item.myAnswer}
+                  </Typography>
+                  {item.myComment && (
+                    <Box
+                      sx={{
+                        mt: 1,
+                        p: 1,
+                        borderRadius: 1,
+                        background: 'rgba(102, 126, 234, 0.05)',
+                        borderLeft: '3px solid rgba(102, 126, 234, 0.5)',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <ChatBubbleIcon sx={{ fontSize: 12 }} />
+                        コメント
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
+                        {item.myComment}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {comparePlayer?.nickname}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 500,
+                      p: 1,
+                      borderRadius: 1,
+                      background: 'rgba(244, 114, 182, 0.1)',
+                    }}
+                  >
+                    {item.theirAnswer}
+                  </Typography>
+                  {item.theirComment && (
+                    <Box
+                      sx={{
+                        mt: 1,
+                        p: 1,
+                        borderRadius: 1,
+                        background: 'rgba(244, 114, 182, 0.05)',
+                        borderLeft: '3px solid rgba(244, 114, 182, 0.5)',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <ChatBubbleIcon sx={{ fontSize: 12 }} />
+                        コメント
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
+                        {item.theirComment}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            </Box>
+          ))}
         </DialogContent>
       </Dialog>
     </Container>

@@ -45,8 +45,8 @@ export function validateNickname(nickname: string): { valid: boolean; error?: st
   }
 
   // 絵文字や特殊文字のチェック（オプション）
-  // 日本語、英数字、一部の記号のみ許可
-  const validPattern = /^[ぁ-んァ-ヴー一-龯a-zA-Z0-9_\s\-]+$/
+  // 日本語、英数字（全角・半角）、一部の記号のみ許可
+  const validPattern = /^[ぁ-んァ-ヴー一-龯a-zA-Zａ-ｚＡ-Ｚ0-9０-９_\s\-＿　]+$/
   if (!validPattern.test(sanitized)) {
     return { valid: false, error: '使用できない文字が含まれています' }
   }
