@@ -1119,10 +1119,17 @@ export default function SummaryPage() {
             fullWidth
             variant="outlined"
             size="large"
-            onClick={() => router.push(`/room/${roomId}/result`)}
+            onClick={() => {
+              // 主催者が結果表示する前（answering状態）は回答ページへ
+              if (room.status === 'answering') {
+                router.push(`/room/${roomId}/answer`)
+              } else {
+                router.push(`/room/${roomId}/result`)
+              }
+            }}
             sx={{ py: 1.5 }}
           >
-            最新の結果に戻る
+            {room.status === 'answering' ? '回答ページに戻る' : '最新の結果に戻る'}
           </Button>
         )}
         <Button
