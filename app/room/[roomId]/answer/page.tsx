@@ -18,7 +18,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  Collapse,
   Fade,
   Grow,
   Skeleton,
@@ -26,12 +25,14 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Drawer,
+  IconButton
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import PeopleIcon from '@mui/icons-material/People'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'
+import CloseIcon from '@mui/icons-material/Close'
 import SendIcon from '@mui/icons-material/Send'
 import QuizIcon from '@mui/icons-material/Quiz'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
@@ -592,70 +593,106 @@ function AnswerPageContent() {
           </Paper>
         </Grow>
 
-      {/* 質問一覧 */}
+      {/* 質問一覧ボタン */}
       <Fade in timeout={700}>
-        <Paper elevation={2} sx={{ mb: 3 }}>
-          <Box
-            sx={{
-              p: 2,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              '&:hover': { background: 'rgba(102, 126, 234, 0.05)' }
-            }}
-            onClick={() => setShowQuestionList(!showQuestionList)}
-          >
-            <Typography variant="subtitle1" fontWeight="600">
-              問題一覧 ({allQuestions.length}問)
-            </Typography>
-            {showQuestionList ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          </Box>
-          <Collapse in={showQuestionList}>
-            <Divider />
-            <List sx={{ py: 0 }}>
-              {allQuestions.map((question, index) => {
-                const isCurrent = question.id === currentQuestion.id
-                const isPast = index < (room.current_question_index)
-
-                return (
-                  <ListItem
-                    key={question.id}
-                    sx={{
-                      background: isCurrent
-                        ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)'
-                        : isPast
-                        ? 'rgba(0, 0, 0, 0.02)'
-                        : 'transparent',
-                      borderLeft: isCurrent ? '4px solid' : '4px solid transparent',
-                      borderColor: isCurrent ? 'primary.main' : 'transparent',
-                      opacity: isPast ? 0.6 : 1
-                    }}
-                  >
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" fontWeight={isCurrent ? 700 : 400}>
-                            Q{index + 1}
-                          </Typography>
-                          {isCurrent && (
-                            <Chip label="回答中" color="primary" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
-                          )}
-                          {isPast && (
-                            <Chip label="終了" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
-                          )}
-                        </Box>
-                      }
-                      secondary={question.question_text}
-                    />
-                  </ListItem>
-                )
-              })}
-            </List>
-          </Collapse>
-        </Paper>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<FormatListBulletedIcon />}
+          onClick={() => setShowQuestionList(true)}
+          sx={{
+            mb: 2,
+            borderRadius: 2,
+            textTransform: 'none',
+          }}
+        >
+          問題一覧 ({allQuestions.length}問)
+        </Button>
       </Fade>
+
+      {/* 質問一覧ボトムシート */}
+      <Drawer
+        anchor="bottom"
+        open={showQuestionList}
+        onClose={() => setShowQuestionList(false)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: '70vh',
+          }
+        }}
+      >
+        {/* ドラッグハンドル */}
+        <Box
+          sx={{
+            width: 40,
+            height: 4,
+            borderRadius: 2,
+            bgcolor: 'rgba(0, 0, 0, 0.2)',
+            mx: 'auto',
+            mt: 1.5,
+            mb: 1,
+          }}
+        />
+        <Box sx={{ px: 2, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" fontWeight="bold">
+            問題一覧
+          </Typography>
+          <IconButton onClick={() => setShowQuestionList(false)} size="small">
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Divider />
+        <List sx={{ py: 0, overflow: 'auto' }}>
+          {allQuestions.map((question, index) => {
+            const isCurrent = question.id === currentQuestion.id
+            const isPast = index < (room.current_question_index)
+
+            return (
+              <ListItem
+                key={question.id}
+                sx={(theme) => ({
+                  background: isCurrent
+                    ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)'
+                    : isPast
+                    ? theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)'
+                    : 'transparent',
+                  borderLeft: isCurrent ? '4px solid' : '4px solid transparent',
+                  borderColor: isCurrent ? 'primary.main' : 'transparent',
+                  opacity: isPast ? 0.6 : 1
+                })}
+              >
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" fontWeight={isCurrent ? 700 : 400}>
+                        Q{index + 1}
+                      </Typography>
+                      {isCurrent && (
+                        <Chip label="回答中" color="primary" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      )}
+                      {isPast && (
+                        <Chip label="終了" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      )}
+                    </Box>
+                  }
+                  secondary={question.question_text}
+                />
+              </ListItem>
+            )
+          })}
+        </List>
+        <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={() => setShowQuestionList(false)}
+          >
+            閉じる
+          </Button>
+        </Box>
+      </Drawer>
 
       {/* 回答フォーム */}
       <Fade in timeout={800}>
@@ -725,7 +762,7 @@ function AnswerPageContent() {
           ) : (
             <>
               {/* あなたの意見 */}
-              <Box sx={{ mb: 4 }}>
+              <Box sx={{ mb: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   <Box
                     sx={{
@@ -779,7 +816,7 @@ function AnswerPageContent() {
 
               {/* 多数派予想 */}
               {!isLateAnswer && (
-                <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: 2.5 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                     <Box
                       sx={{
@@ -838,7 +875,7 @@ function AnswerPageContent() {
               )}
 
               {/* コメント */}
-              <Box sx={{ mb: 3 }}>
+              <Box sx={{ mb: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   <Box
                     sx={{

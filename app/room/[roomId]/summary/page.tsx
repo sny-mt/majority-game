@@ -482,7 +482,7 @@ export default function SummaryPage() {
               <Box
                 key={similar.playerId}
                 onClick={() => handleCompareClick(similar)}
-                sx={{
+                sx={(theme) => ({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -492,16 +492,20 @@ export default function SummaryPage() {
                   cursor: 'pointer',
                   background: isTopMatch
                     ? 'linear-gradient(135deg, rgba(244, 114, 182, 0.2) 0%, rgba(251, 113, 133, 0.2) 100%)'
+                    : theme.palette.mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.08)'
                     : 'rgba(255, 255, 255, 0.5)',
                   border: isTopMatch
                     ? '2px solid rgba(244, 114, 182, 0.4)'
+                    : theme.palette.mode === 'dark'
+                    ? '1px solid rgba(255, 255, 255, 0.1)'
                     : '1px solid rgba(0, 0, 0, 0.05)',
                   transition: 'all 0.2s',
                   '&:hover': {
                     transform: 'translateX(4px)',
                     boxShadow: '0 4px 12px rgba(244, 114, 182, 0.2)',
                   },
-                }}
+                })}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Box

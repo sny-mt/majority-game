@@ -860,131 +860,6 @@ export default function ResultPage() {
           </Zoom>
         ))}
 
-      {/* その他の回答 */}
-      {result.answerGroups.filter(group => !group.isMajority).length > 0 && (
-        <Fade in={showResults} timeout={700}>
-          <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-            <Typography variant="h6" gutterBottom fontWeight="bold">
-              その他の回答
-            </Typography>
-            {result.answerGroups
-              .filter(group => !group.isMajority)
-              .map((group, index) => (
-                <Slide in={showResults} direction="right" timeout={500 + index * 150} key={index}>
-                  <Box
-                    sx={{
-                      mb: 2,
-                      p: 2,
-                      borderRadius: 2,
-                      background: 'rgba(102, 126, 234, 0.05)',
-                      border: '1px solid rgba(102, 126, 234, 0.1)',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {group.answer}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: '0.95rem',
-                        }}
-                      >
-                        {group.count}人 ({(animatedPercentages.get(group.answer) ?? 0).toFixed(1)}%)
-                      </Typography>
-                    </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={animatedPercentages.get(group.answer) ?? 0}
-                      sx={{
-                        height: 8,
-                        borderRadius: 4,
-                        bgcolor: 'rgba(102, 126, 234, 0.1)',
-                        mb: 1.5,
-                        transition: 'none',
-                        '& .MuiLinearProgress-bar': {
-                          borderRadius: 4,
-                          background: 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)',
-                          transition: 'none',
-                        },
-                      }}
-                    />
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {group.players.map((playerName, idx) => {
-                      const player = players.find(p => p.nickname === playerName)
-                      const answer = player ? answers.find(a => a.player_id === player.id) : null
-                      const hasComment = answer && answer.comment
-
-                      return (
-                        <Chip
-                          key={idx}
-                          label={playerName}
-                          icon={hasComment ? <ChatBubbleIcon /> : undefined}
-                          size="small"
-                          onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id) : undefined}
-                          sx={{
-                            cursor: hasComment ? 'pointer' : 'default',
-                            transition: 'all 0.2s',
-                            '&:hover': hasComment ? { transform: 'scale(1.05)' } : {},
-                          }}
-                        />
-                      )
-                    })}
-                  </Box>
-                  </Box>
-                </Slide>
-              ))}
-          </Paper>
-        </Fade>
-      )}
-
-      {/* 予想的中プレイヤー */}
-      {answers.filter(a => a.is_correct_prediction).length > 0 && (
-        <Fade in timeout={800}>
-          <Paper
-            elevation={3}
-            sx={{
-              p: 3,
-              mb: 3,
-              borderRadius: 3,
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.1) 100%)',
-              border: '1px solid rgba(16, 185, 129, 0.2)',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <CheckCircleIcon sx={{ color: '#10b981' }} />
-              <Typography variant="h6" fontWeight="bold">
-                予想的中！（+10pt）
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {answers
-                .filter(a => a.is_correct_prediction)
-                .map(answer => {
-                  const player = players.find(p => p.id === answer.player_id)
-                  return player ? (
-                    <Chip
-                      key={answer.id}
-                      label={player.nickname}
-                      icon={<StarIcon />}
-                      sx={{
-                        fontWeight: 600,
-                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(52, 211, 153, 0.2) 100%)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                        '& .MuiChip-icon': {
-                          color: '#10b981',
-                        },
-                      }}
-                    />
-                  ) : null
-                })}
-            </Box>
-          </Paper>
-        </Fade>
-      )}
-
       {/* リーダーボード */}
       <Fade in timeout={900}>
         <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
@@ -1140,6 +1015,139 @@ export default function ResultPage() {
           })}
         </Paper>
       </Fade>
+
+      {/* 予想的中プレイヤー */}
+      {answers.filter(a => a.is_correct_prediction).length > 0 && (
+        <Fade in timeout={950}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 3,
+              mb: 3,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.1) 100%)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <CheckCircleIcon sx={{ color: '#10b981' }} />
+              <Typography variant="h6" fontWeight="bold">
+                予想的中！（+10pt）
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {answers
+                .filter(a => a.is_correct_prediction)
+                .map(answer => {
+                  const player = players.find(p => p.id === answer.player_id)
+                  return player ? (
+                    <Chip
+                      key={answer.id}
+                      label={player.nickname}
+                      icon={<StarIcon />}
+                      sx={{
+                        fontWeight: 600,
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(52, 211, 153, 0.2) 100%)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        '& .MuiChip-icon': {
+                          color: '#10b981',
+                        },
+                      }}
+                    />
+                  ) : null
+                })}
+            </Box>
+          </Paper>
+        </Fade>
+      )}
+
+      {/* その他の回答 */}
+      {result.answerGroups.filter(group => !group.isMajority).length > 0 && (
+        <Fade in={showResults} timeout={1000}>
+          <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
+            <Typography variant="h6" gutterBottom fontWeight="bold">
+              その他の回答
+            </Typography>
+            {result.answerGroups
+              .filter(group => !group.isMajority)
+              .map((group, index) => (
+                <Slide in={showResults} direction="right" timeout={500 + index * 150} key={index}>
+                  <Box
+                    sx={(theme) => ({
+                      mb: 2,
+                      p: 2,
+                      borderRadius: 2,
+                      background: theme.palette.mode === 'dark'
+                        ? 'rgba(102, 126, 234, 0.15)'
+                        : 'rgba(102, 126, 234, 0.05)',
+                      border: theme.palette.mode === 'dark'
+                        ? '1px solid rgba(102, 126, 234, 0.3)'
+                        : '1px solid rgba(102, 126, 234, 0.1)',
+                    })}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }} color="text.primary">
+                        {group.answer}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: '0.95rem',
+                        }}
+                      >
+                        {group.count}人 ({(animatedPercentages.get(group.answer) ?? 0).toFixed(1)}%)
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={animatedPercentages.get(group.answer) ?? 0}
+                      sx={(theme) => ({
+                        height: 8,
+                        borderRadius: 4,
+                        bgcolor: theme.palette.mode === 'dark'
+                          ? 'rgba(102, 126, 234, 0.2)'
+                          : 'rgba(102, 126, 234, 0.1)',
+                        mb: 1.5,
+                        transition: 'none',
+                        '& .MuiLinearProgress-bar': {
+                          borderRadius: 4,
+                          background: theme.palette.mode === 'dark'
+                            ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                            : 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)',
+                          transition: 'none',
+                        },
+                      })}
+                    />
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {group.players.map((playerName, idx) => {
+                        const player = players.find(p => p.nickname === playerName)
+                        const answer = player ? answers.find(a => a.player_id === player.id) : null
+                        const hasComment = answer && answer.comment
+
+                        return (
+                          <Chip
+                            key={idx}
+                            label={playerName}
+                            icon={hasComment ? <ChatBubbleIcon /> : undefined}
+                            size="small"
+                            onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id) : undefined}
+                            sx={{
+                              cursor: hasComment ? 'pointer' : 'default',
+                              transition: 'all 0.2s',
+                              '&:hover': hasComment ? { transform: 'scale(1.05)' } : {},
+                            }}
+                          />
+                        )
+                      })}
+                    </Box>
+                  </Box>
+                </Slide>
+              ))}
+          </Paper>
+        </Fade>
+      )}
 
       {/* ナビゲーション */}
       {room.current_question_index > 0 && (
