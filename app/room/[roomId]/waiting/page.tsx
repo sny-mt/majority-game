@@ -9,15 +9,11 @@ import {
   Paper,
   Button,
   Chip,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
   Fade,
   Grow,
   Skeleton,
-  Avatar
+  Avatar,
+  Collapse
 } from '@mui/material'
 import GroupsIcon from '@mui/icons-material/Groups'
 import PersonIcon from '@mui/icons-material/Person'
@@ -25,7 +21,8 @@ import StarIcon from '@mui/icons-material/Star'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import QrCodeIcon from '@mui/icons-material/QrCode'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import { QRCodeCanvas } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
@@ -44,6 +41,38 @@ export default function WaitingPage() {
   const [copied, setCopied] = useState(false)
   const [roomUrl, setRoomUrl] = useState('')
   const [isStarting, setIsStarting] = useState(false)
+  const [showAllPlayers, setShowAllPlayers] = useState(false)
+
+  const INITIAL_DISPLAY_COUNT = 12 // 初期表示人数
+
+  // ========== 開発用ダミーデータ（本番では削除） ==========
+  const DEV_MODE = true // falseにすると無効化
+  const generateDummyPlayers = (count: number, realPlayers: typeof players) => {
+    if (!DEV_MODE || realPlayers.length >= count) return realPlayers
+    const dummyNames = [
+      'たろう', 'はなこ', 'ゆうき', 'さくら', 'けんた', 'みさき', 'りょう', 'あおい',
+      'そうた', 'ひなた', 'ゆうと', 'めい', 'はると', 'りん', 'そら', 'こはる',
+      'ゆい', 'あかり', 'れん', 'みお', 'かいと', 'ゆな', 'りく', 'ほのか',
+      'たくみ', 'さき', 'しょう', 'ここあ', 'だいき', 'ひまり', 'ゆうま', 'あんな',
+      'こうき', 'まお', 'しゅん', 'みゆ', 'りょうた', 'なな', 'かずき', 'もも',
+      'たいが', 'ゆず', 'けい', 'ことね', 'あつし', 'まこ', 'じゅん', 'ふうか',
+      'まさと', 'りこ'
+    ]
+    const dummies = []
+    for (let i = realPlayers.length; i < count; i++) {
+      dummies.push({
+        id: `dummy-${i}`,
+        room_id: roomId,
+        nickname: dummyNames[i] || `テスト${i + 1}`,
+        is_host: false,
+        score: 0,
+        joined_at: new Date().toISOString(),
+        player_id: `dummy-player-${i}`
+      } as typeof players[0])
+    }
+    return [...realPlayers, ...dummies]
+  }
+  // ========== ダミーデータここまで ==========
 
   useEffect(() => {
     const initialize = async () => {
@@ -365,98 +394,183 @@ export default function WaitingPage() {
       {/* 参加者一覧 */}
       <Fade in timeout={700}>
         <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PersonIcon color="primary" />
-              <Typography variant="h6" fontWeight="bold">
-                参加者
-              </Typography>
-            </Box>
-            <Chip
-              label={`${players.length}人`}
-              color="primary"
-              size="small"
-              sx={{
-                fontWeight: 700,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              }}
-            />
-          </Box>
+          {(() => {
+            // ダミーデータを含めた表示用プレイヤーリスト
+            const displayPlayers = generateDummyPlayers(30, players) // 30人分表示
+            return (
+              <>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <PersonIcon color="primary" />
+                    <Typography variant="h6" fontWeight="bold">
+                      参加者
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={`${displayPlayers.length}人`}
+                    color="primary"
+                    size="small"
+                    sx={{
+                      fontWeight: 700,
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    }}
+                  />
+                </Box>
 
-          {players.length === 0 ? (
-            <Box sx={{ py: 4, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                まだ誰も参加していません
-              </Typography>
-            </Box>
-          ) : (
-            <List sx={{ py: 0 }}>
-              {players.map((player, index) => (
-                <Grow in timeout={300 + index * 100} key={player.id}>
-                  <Box>
-                    {index > 0 && <Divider />}
-                    <ListItem
+                {displayPlayers.length === 0 ? (
+                  <Box sx={{ py: 4, textAlign: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      まだ誰も参加していません
+                    </Typography>
+                  </Box>
+                ) : (
+                  <>
+                    {/* グリッド表示 */}
+                    <Box
                       sx={{
-                        py: 1.5,
-                        background: player.id === playerId
-                          ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)'
-                          : 'transparent',
-                        borderRadius: 2,
-                        my: 0.5,
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                        gap: 1,
                       }}
                     >
-                      <ListItemIcon sx={{ minWidth: 40 }}>
-                        <Avatar
+                      {displayPlayers.slice(0, INITIAL_DISPLAY_COUNT).map((player, index) => (
+                  <Grow in timeout={200 + index * 50} key={player.id}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        p: 1,
+                        borderRadius: 2,
+                        background: player.id === playerId
+                          ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)'
+                          : player.is_host
+                          ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%)'
+                          : 'rgba(0, 0, 0, 0.02)',
+                        border: player.id === playerId
+                          ? '2px solid rgba(102, 126, 234, 0.3)'
+                          : player.is_host
+                          ? '1px solid rgba(245, 158, 11, 0.3)'
+                          : '1px solid rgba(0, 0, 0, 0.05)',
+                      }}
+                    >
+                      <Avatar
+                        sx={{
+                          width: 28,
+                          height: 28,
+                          fontSize: '0.75rem',
+                          background: player.is_host
+                            ? 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)'
+                            : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        }}
+                      >
+                        {player.nickname.charAt(0)}
+                      </Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          variant="body2"
                           sx={{
-                            width: 32,
-                            height: 32,
-                            background: player.is_host
-                              ? 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)'
-                              : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            fontSize: '0.875rem',
+                            fontWeight: player.id === playerId || player.is_host ? 600 : 400,
+                            fontSize: '0.8rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          {player.nickname.charAt(0)}
-                        </Avatar>
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography
-                              variant="body1"
-                              fontWeight={player.id === playerId ? 700 : 400}
-                            >
-                              {player.nickname}
+                          {player.nickname}
+                          {player.id === playerId && ' (あなた)'}
+                        </Typography>
+                        {player.is_host && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <StarIcon sx={{ fontSize: 12, color: '#f59e0b' }} />
+                            <Typography variant="caption" sx={{ color: '#f59e0b', fontSize: '0.65rem' }}>
+                              ホスト
                             </Typography>
-                            {player.is_host && (
-                              <Chip
-                                icon={<StarIcon sx={{ fontSize: '0.875rem !important' }} />}
-                                label="ホスト"
-                                size="small"
-                                sx={{
-                                  height: 20,
-                                  fontSize: '0.7rem',
-                                  background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
-                                  color: 'white',
-                                  '& .MuiChip-icon': { color: 'white' },
-                                }}
-                              />
-                            )}
-                            {player.id === playerId && !player.is_host && (
-                              <Typography variant="caption" color="text.secondary">
-                                (あなた)
-                              </Typography>
-                            )}
                           </Box>
-                        }
-                      />
-                      <CheckCircleIcon sx={{ color: '#10b981', fontSize: 20 }} />
-                    </ListItem>
-                  </Box>
-                </Grow>
-              ))}
-            </List>
-          )}
+                        )}
+                      </Box>
+                    </Box>
+                  </Grow>
+                ))}
+              </Box>
+
+                    {/* 折りたたみ部分 */}
+                    {displayPlayers.length > INITIAL_DISPLAY_COUNT && (
+                      <>
+                        <Collapse in={showAllPlayers}>
+                          <Box
+                            sx={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                              gap: 1,
+                              mt: 1,
+                            }}
+                          >
+                            {displayPlayers.slice(INITIAL_DISPLAY_COUNT).map((player, index) => (
+                              <Grow in={showAllPlayers} timeout={100 + index * 30} key={player.id}>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    p: 1,
+                                    borderRadius: 2,
+                                    background: player.id === playerId
+                                      ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)'
+                                      : 'rgba(0, 0, 0, 0.02)',
+                                    border: player.id === playerId
+                                      ? '2px solid rgba(102, 126, 234, 0.3)'
+                                      : '1px solid rgba(0, 0, 0, 0.05)',
+                                  }}
+                                >
+                                  <Avatar
+                                    sx={{
+                                      width: 28,
+                                      height: 28,
+                                      fontSize: '0.75rem',
+                                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    }}
+                                  >
+                                    {player.nickname.charAt(0)}
+                                  </Avatar>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontWeight: player.id === playerId ? 600 : 400,
+                                      fontSize: '0.8rem',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      flex: 1,
+                                    }}
+                                  >
+                                    {player.nickname}
+                                    {player.id === playerId && ' (あなた)'}
+                                  </Typography>
+                                </Box>
+                              </Grow>
+                            ))}
+                          </Box>
+                        </Collapse>
+                        <Button
+                          fullWidth
+                          variant="text"
+                          size="small"
+                          onClick={() => setShowAllPlayers(!showAllPlayers)}
+                          startIcon={showAllPlayers ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                          sx={{ mt: 1.5, color: 'text.secondary' }}
+                        >
+                          {showAllPlayers
+                            ? '折りたたむ'
+                            : `他${displayPlayers.length - INITIAL_DISPLAY_COUNT}人を表示`}
+                        </Button>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )
+          })()}
         </Paper>
       </Fade>
 

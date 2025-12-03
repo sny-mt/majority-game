@@ -21,7 +21,8 @@ import {
   ListItemButton,
   ListItemText,
   Snackbar,
-  Alert
+  Alert,
+  Collapse
 } from '@mui/material'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
@@ -32,6 +33,9 @@ import PeopleIcon from '@mui/icons-material/People'
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import CheckIcon from '@mui/icons-material/Check'
 import ClearIcon from '@mui/icons-material/Clear'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import LocationOnIcon from '@mui/icons-material/LocationOn'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { aggregateAnswers, type AnswerGroup } from '@/lib/utils/aggregation'
@@ -75,6 +79,34 @@ export default function SummaryPage() {
   const [selectedQuestion, setSelectedQuestion] = useState<QuestionSummary | null>(null)
   const [showTransitionSnackbar, setShowTransitionSnackbar] = useState(false)
   const [countdown, setCountdown] = useState(3)
+  const [showAllRankings, setShowAllRankings] = useState(false)
+
+  // ========== 開発用ダミーデータ（本番では削除） ==========
+  const DEV_MODE = true // falseにすると無効化
+  const generateDummyPlayers = (count: number, realPlayers: typeof players): typeof players => {
+    if (!DEV_MODE || realPlayers.length >= count) return realPlayers
+    const dummyNames = [
+      'たろう', 'はなこ', 'ゆうき', 'さくら', 'けんた', 'みさき', 'りょう', 'あおい',
+      'そうた', 'ひなた', 'ゆうと', 'めい', 'はると', 'りん', 'そら', 'こはる',
+      'ゆい', 'あかり', 'れん', 'みお', 'かいと', 'ゆな', 'りく', 'ほのか',
+      'たくみ', 'さき', 'しょう', 'ここあ', 'だいき', 'ひまり', 'ゆうま', 'あんな'
+    ]
+    const dummies: typeof players = []
+    for (let i = realPlayers.length; i < count; i++) {
+      dummies.push({
+        id: `dummy-${i}`,
+        room_id: roomId,
+        nickname: dummyNames[i] || `テスト${i + 1}`,
+        is_host: false,
+        score: Math.floor(Math.random() * 100), // ランダムスコア
+        joined_at: new Date().toISOString(),
+        player_id: `dummy-player-${i}`
+      })
+    }
+    // スコア順にソート
+    return [...realPlayers, ...dummies].sort((a, b) => b.score - a.score)
+  }
+  // ========== ダミーデータここまで ==========
 
   useEffect(() => {
     const initializeSummary = async () => {
@@ -397,94 +429,158 @@ export default function SummaryPage() {
         <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
           🏆 {room.status === 'finished' ? '最終順位' : '現在の順位'}
         </Typography>
-        {players.map((player, index) => {
-          const isCurrentPlayer = player.id === playerId
 
-          // 同点を考慮した順位計算
-          let rank = 1
-          for (let i = 0; i < index; i++) {
-            if (players[i].score > player.score) {
-              rank++
+        {(() => {
+          // ダミーデータを含めた表示用プレイヤーリスト
+          const displayPlayers = generateDummyPlayers(25, players)
+
+          // 順位計算を事前に行う
+          const playersWithRank = displayPlayers.map((player, index) => {
+            let rank = 1
+            for (let i = 0; i < index; i++) {
+              if (displayPlayers[i].score > player.score) {
+                rank++
+              }
             }
-          }
+            return { ...player, rank, index }
+          })
 
-          // デバッグ用ログ
-          if (index === 0) {
-            console.log('=== 順位計算デバッグ ===')
-            players.forEach((p, i) => {
-              console.log(`${i}: ${p.nickname} - ${p.score}点`)
-            })
-          }
+          // 自分の順位を見つける
+          const myRanking = playersWithRank.find(p => p.id === playerId)
+          const myRank = myRanking?.rank || 0
 
-          const isFirstPlace = rank === 1
-          const isSecondPlace = rank === 2
-          const isThirdPlace = rank === 3
+          // トップ3を取得（同率を含む）
+          const top3 = playersWithRank.filter(p => p.rank <= 3)
 
-          return (
-            <Box
-              key={player.id}
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                p: 2,
-                mb: 1,
-                bgcolor: isCurrentPlayer
-                  ? 'primary.light'
-                  : isFirstPlace
-                  ? 'warning.light'
-                  : isSecondPlace
-                  ? 'grey.300'
-                  : isThirdPlace
-                  ? '#CD7F32'
-                  : 'grey.100',
-                borderRadius: 1,
-                border: 2,
-                borderColor: isCurrentPlayer
-                  ? 'primary.main'
-                  : isFirstPlace
-                  ? 'warning.main'
-                  : 'transparent',
-                boxShadow: isCurrentPlayer ? 3 : 0
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 'bold',
-                    minWidth: '50px',
-                    color: isCurrentPlayer ? 'primary.dark' : 'inherit'
-                  }}
-                >
-                  {isFirstPlace && '🥇 '}
-                  {isSecondPlace && '🥈 '}
-                  {isThirdPlace && '🥉 '}
-                  {rank}位
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: isCurrentPlayer || isFirstPlace ? 'bold' : 'normal',
-                    color: isCurrentPlayer ? 'primary.dark' : 'inherit'
-                  }}
-                >
-                  {player.nickname}
-                  {isCurrentPlayer && ' (あなた)'}
-                </Typography>
-              </Box>
-              <Typography
-                variant="h5"
+          // 自分がトップ3外の場合、自分を別途表示
+          const showMyRankSeparately = myRank > 3 && myRanking
+
+          // 残りのプレイヤー（トップ3と自分を除く）
+          const remainingPlayers = playersWithRank.filter(p =>
+            p.rank > 3 && p.id !== playerId
+          )
+
+          const renderPlayerRow = (player: typeof playersWithRank[0], isHighlighted = false) => {
+            const isCurrentPlayer = player.id === playerId
+            const isFirstPlace = player.rank === 1
+            const isSecondPlace = player.rank === 2
+            const isThirdPlace = player.rank === 3
+
+            return (
+              <Box
+                key={player.id}
                 sx={{
-                  fontWeight: 'bold',
-                  color: isCurrentPlayer ? 'primary.dark' : 'primary.main'
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  p: 1.5,
+                  mb: 0.5,
+                  bgcolor: isCurrentPlayer
+                    ? 'primary.light'
+                    : isFirstPlace
+                    ? 'rgba(251, 191, 36, 0.2)'
+                    : isSecondPlace
+                    ? 'rgba(156, 163, 175, 0.2)'
+                    : isThirdPlace
+                    ? 'rgba(180, 83, 9, 0.15)'
+                    : 'rgba(0, 0, 0, 0.02)',
+                  borderRadius: 2,
+                  border: isCurrentPlayer ? '2px solid' : '1px solid',
+                  borderColor: isCurrentPlayer
+                    ? 'primary.main'
+                    : isFirstPlace
+                    ? 'rgba(251, 191, 36, 0.5)'
+                    : 'rgba(0, 0, 0, 0.05)',
                 }}
               >
-                {player.score}pt
-              </Typography>
-            </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      fontWeight: 'bold',
+                      minWidth: '45px',
+                      fontSize: isFirstPlace || isSecondPlace || isThirdPlace ? '1rem' : '0.9rem',
+                    }}
+                  >
+                    {isFirstPlace && '🥇'}
+                    {isSecondPlace && '🥈'}
+                    {isThirdPlace && '🥉'}
+                    {!isFirstPlace && !isSecondPlace && !isThirdPlace && `${player.rank}位`}
+                  </Typography>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      fontWeight: isCurrentPlayer || isFirstPlace ? 700 : 400,
+                      fontSize: isFirstPlace ? '1rem' : '0.9rem',
+                    }}
+                  >
+                    {player.nickname}
+                    {isCurrentPlayer && ' (あなた)'}
+                  </Typography>
+                </Box>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    fontWeight: 700,
+                    color: isCurrentPlayer ? 'primary.dark' : 'primary.main',
+                    fontSize: isFirstPlace ? '1.1rem' : '0.95rem',
+                  }}
+                >
+                  {player.score}pt
+                </Typography>
+              </Box>
+            )
+          }
+
+          return (
+            <>
+              {/* トップ3 */}
+              {top3.map(player => renderPlayerRow(player))}
+
+              {/* 自分の順位（トップ3外の場合） */}
+              {showMyRankSeparately && (
+                <>
+                  <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    my: 1.5,
+                    px: 1,
+                  }}>
+                    <LocationOnIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                    <Typography variant="body2" color="text.secondary">
+                      あなたの順位
+                    </Typography>
+                    <Divider sx={{ flex: 1 }} />
+                  </Box>
+                  {renderPlayerRow(myRanking, true)}
+                </>
+              )}
+
+              {/* 残りのプレイヤー（折りたたみ） */}
+              {remainingPlayers.length > 0 && (
+                <>
+                  <Collapse in={showAllRankings}>
+                    <Divider sx={{ my: 1.5 }} />
+                    {remainingPlayers.map(player => renderPlayerRow(player))}
+                  </Collapse>
+                  <Button
+                    fullWidth
+                    variant="text"
+                    size="small"
+                    onClick={() => setShowAllRankings(!showAllRankings)}
+                    startIcon={showAllRankings ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    sx={{ mt: 1, color: 'text.secondary' }}
+                  >
+                    {showAllRankings
+                      ? '折りたたむ'
+                      : `他${remainingPlayers.length}人の順位を表示`}
+                  </Button>
+                </>
+              )}
+            </>
           )
-        })}
+        })()}
       </Paper>
 
       {/* 回答が近かった人（2人以上参加の場合のみ表示） */}

@@ -27,7 +27,8 @@ import {
   DialogContent,
   DialogActions,
   Drawer,
-  IconButton
+  IconButton,
+  Collapse
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import PeopleIcon from '@mui/icons-material/People'
@@ -41,6 +42,8 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import TimerIcon from '@mui/icons-material/Timer'
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
 import PersonIcon from '@mui/icons-material/Person'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateComment } from '@/lib/utils/validation'
@@ -104,6 +107,30 @@ function AnswerPageContent() {
   const [timeRemaining, setTimeRemaining] = useState(180) // 3分 = 180秒
   const [timerStarted, setTimerStarted] = useState(false)
   const [players, setPlayers] = useState<{id: string; nickname: string; hasAnswered: boolean}[]>([])
+  const [showAnswerDetails, setShowAnswerDetails] = useState(false)
+
+  const INITIAL_PLAYER_DISPLAY = 8 // 初期表示人数
+
+  // ========== 開発用ダミーデータ（本番では削除） ==========
+  const DEV_MODE = true // falseにすると無効化
+  const generateDummyPlayers = (count: number, realPlayers: typeof players) => {
+    if (!DEV_MODE || realPlayers.length >= count) return realPlayers
+    const dummyNames = [
+      'たろう', 'はなこ', 'ゆうき', 'さくら', 'けんた', 'みさき', 'りょう', 'あおい',
+      'そうた', 'ひなた', 'ゆうと', 'めい', 'はると', 'りん', 'そら', 'こはる',
+      'ゆい', 'あかり', 'れん', 'みお', 'かいと', 'ゆな', 'りく', 'ほのか'
+    ]
+    const dummies = []
+    for (let i = realPlayers.length; i < count; i++) {
+      dummies.push({
+        id: `dummy-${i}`,
+        nickname: dummyNames[i] || `テスト${i + 1}`,
+        hasAnswered: Math.random() > 0.3 // 70%が回答済み
+      })
+    }
+    return [...realPlayers, ...dummies]
+  }
+  // ========== ダミーデータここまで ==========
 
   useEffect(() => {
     const initializeRoom = async () => {
@@ -951,39 +978,112 @@ function AnswerPageContent() {
             borderRadius: 3,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PersonIcon fontSize="small" color="primary" />
-              <Typography variant="subtitle2" fontWeight="bold">
-                回答状況
-              </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary">
-              {answeredCount}/{totalPlayers}人完了
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {players.map((player) => (
-              <Chip
-                key={player.id}
-                label={player.nickname}
-                size="small"
-                icon={player.hasAnswered ? <CheckCircleIcon /> : <HourglassEmptyIcon />}
-                sx={{
-                  background: player.hasAnswered
-                    ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(52, 211, 153, 0.2) 100%)'
-                    : 'rgba(0, 0, 0, 0.05)',
-                  border: player.hasAnswered
-                    ? '1px solid rgba(16, 185, 129, 0.3)'
-                    : '1px solid rgba(0, 0, 0, 0.1)',
-                  fontWeight: player.id === playerId ? 700 : 400,
-                  '& .MuiChip-icon': {
-                    color: player.hasAnswered ? '#10b981' : '#9ca3af',
-                  },
-                }}
-              />
-            ))}
-          </Box>
+          {(() => {
+            // ダミーデータを含めた表示用プレイヤーリスト
+            const displayPlayers = generateDummyPlayers(20, players)
+            const displayAnsweredCount = displayPlayers.filter(p => p.hasAnswered).length
+            const displayTotalPlayers = displayPlayers.length
+
+            return (
+              <>
+                <Box
+                  onClick={() => displayPlayers.length > INITIAL_PLAYER_DISPLAY && setShowAnswerDetails(!showAnswerDetails)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    mb: showAnswerDetails || displayPlayers.length <= INITIAL_PLAYER_DISPLAY ? 1.5 : 0,
+                    cursor: displayPlayers.length > INITIAL_PLAYER_DISPLAY ? 'pointer' : 'default',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <PersonIcon fontSize="small" color="primary" />
+                    <Typography variant="subtitle2" fontWeight="bold">
+                      回答状況
+                    </Typography>
+                    <Chip
+                      label={`${displayAnsweredCount}/${displayTotalPlayers}人`}
+                      size="small"
+                      sx={{
+                        height: 20,
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        background: displayAnsweredCount === displayTotalPlayers
+                          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(52, 211, 153, 0.2) 100%)'
+                          : 'rgba(102, 126, 234, 0.15)',
+                        color: displayAnsweredCount === displayTotalPlayers ? '#059669' : 'primary.main',
+                      }}
+                    />
+                  </Box>
+                  {displayPlayers.length > INITIAL_PLAYER_DISPLAY && (
+                    <IconButton size="small" sx={{ p: 0.5 }}>
+                      {showAnswerDetails ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                    </IconButton>
+                  )}
+                </Box>
+
+                {/* 常時表示部分（最初の数人 or 全員） */}
+                {displayPlayers.length <= INITIAL_PLAYER_DISPLAY ? (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {displayPlayers.map((player) => (
+                      <Chip
+                        key={player.id}
+                        label={player.nickname}
+                        size="small"
+                        icon={player.hasAnswered ? <CheckCircleIcon /> : <HourglassEmptyIcon />}
+                        sx={{
+                          background: player.hasAnswered
+                            ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(52, 211, 153, 0.2) 100%)'
+                            : 'rgba(0, 0, 0, 0.05)',
+                          border: player.hasAnswered
+                            ? '1px solid rgba(16, 185, 129, 0.3)'
+                            : '1px solid rgba(0, 0, 0, 0.1)',
+                          fontWeight: player.id === playerId ? 700 : 400,
+                          '& .MuiChip-icon': {
+                            color: player.hasAnswered ? '#10b981' : '#9ca3af',
+                          },
+                        }}
+                      />
+                    ))}
+                  </Box>
+                ) : (
+                  <Collapse in={showAnswerDetails}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {displayPlayers.map((player) => (
+                        <Chip
+                          key={player.id}
+                          label={player.nickname}
+                          size="small"
+                          icon={player.hasAnswered ? <CheckCircleIcon /> : <HourglassEmptyIcon />}
+                          sx={{
+                            background: player.hasAnswered
+                              ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(52, 211, 153, 0.2) 100%)'
+                              : 'rgba(0, 0, 0, 0.05)',
+                            border: player.hasAnswered
+                              ? '1px solid rgba(16, 185, 129, 0.3)'
+                              : '1px solid rgba(0, 0, 0, 0.1)',
+                            fontWeight: player.id === playerId ? 700 : 400,
+                            '& .MuiChip-icon': {
+                              color: player.hasAnswered ? '#10b981' : '#9ca3af',
+                            },
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  </Collapse>
+                )}
+
+                {/* 折りたたみ状態の場合のサマリー */}
+                {displayPlayers.length > INITIAL_PLAYER_DISPLAY && !showAnswerDetails && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      タップして詳細を表示
+                    </Typography>
+                  </Box>
+                )}
+              </>
+            )
+          })()}
         </Paper>
       </Fade>
 
