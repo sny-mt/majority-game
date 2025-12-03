@@ -99,8 +99,7 @@ export default function SummaryPage() {
         nickname: dummyNames[i] || `テスト${i + 1}`,
         is_host: false,
         score: Math.floor(Math.random() * 100), // ランダムスコア
-        joined_at: new Date().toISOString(),
-        player_id: `dummy-player-${i}`
+        joined_at: new Date().toISOString()
       })
     }
     // スコア順にソート

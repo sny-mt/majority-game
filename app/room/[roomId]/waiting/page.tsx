@@ -66,8 +66,7 @@ export default function WaitingPage() {
         nickname: dummyNames[i] || `テスト${i + 1}`,
         is_host: false,
         score: 0,
-        joined_at: new Date().toISOString(),
-        player_id: `dummy-player-${i}`
+        joined_at: new Date().toISOString()
       } as typeof players[0])
     }
     return [...realPlayers, ...dummies]
