@@ -1194,6 +1194,9 @@ function AnswerPageContent() {
           <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
             ※ 送信後は変更できません
           </Typography>
+          <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block', lineHeight: 1.5 }}>
+            ※会社に関わる情報や、氏名・住所・電話番号・メールアドレスなどの個人情報は記載しないでください
+          </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button

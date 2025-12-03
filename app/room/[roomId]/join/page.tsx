@@ -251,8 +251,11 @@ export default function JoinPage() {
 
         <Grow in timeout={600}>
           <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
               ニックネームを入力して参加しましょう
+            </Typography>
+            <Typography variant="caption" color="error" sx={{ mb: 2, display: 'block', textAlign: 'center', lineHeight: 1.5 }}>
+              ※会社に関わる情報や、氏名・住所・電話番号・メールアドレスなどの個人情報は記載しないでください
             </Typography>
             <TextField
               fullWidth

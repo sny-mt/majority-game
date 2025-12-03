@@ -500,12 +500,15 @@ export default function Home() {
             value={hostNickname}
             onChange={(e) => setHostNickname(e.target.value)}
             placeholder="例：たろう"
-            sx={{ mb: 2 }}
+            sx={{ mb: 1 }}
             required
             InputProps={{
               sx: { fontSize: '1.1rem' }
             }}
           />
+          <Typography variant="caption" color="error" sx={{ mb: 2, display: 'block', lineHeight: 1.5 }}>
+            ※会社に関わる情報や、氏名・住所・電話番号・メールアドレスなどの個人情報は記載しないでください
+          </Typography>
           <TextField
             fullWidth
             label="ルーム名（任意）"
