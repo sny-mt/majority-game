@@ -112,7 +112,7 @@ function AnswerPageContent() {
   const INITIAL_PLAYER_DISPLAY = 8 // 初期表示人数
 
   // ========== 開発用ダミーデータ（本番では削除） ==========
-  const DEV_MODE = true // falseにすると無効化
+  const DEV_MODE = false // falseにすると無効化
   const generateDummyPlayers = (count: number, realPlayers: typeof players) => {
     if (!DEV_MODE || realPlayers.length >= count) return realPlayers
     const dummyNames = [
