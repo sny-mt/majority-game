@@ -95,8 +95,8 @@ export default function JoinPage() {
         } else if (roomData.status === 'finished') {
           router.push(`/room/${roomId}/summary`)
         } else {
-          // waiting状態の場合はanswerページへ（待機画面）
-          router.push(`/room/${roomId}/answer`)
+          // waiting状態の場合は待機画面へ
+          router.push(`/room/${roomId}/waiting`)
         }
         return
       }
@@ -126,8 +126,8 @@ export default function JoinPage() {
       } else if (roomData.status === 'finished') {
         router.push(`/room/${roomId}/summary`)
       } else {
-        // waiting状態の場合はanswerページへ（待機画面）
-        router.push(`/room/${roomId}/answer`)
+        // waiting状態の場合は待機画面へ
+        router.push(`/room/${roomId}/waiting`)
       }
     } catch (err: any) {
       console.error('Error joining room:', err)

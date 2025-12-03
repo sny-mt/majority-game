@@ -715,12 +715,12 @@ export default function Home() {
                     onClick={() => {
                       const roomId = roomUrl.split('/room/')[1]?.split('/')[0]
                       if (roomId) {
-                        router.push(`/room/${roomId}/answer`)
+                        router.push(`/room/${roomId}/waiting`)
                       }
                     }}
                     sx={{ flex: 1 }}
                   >
-                    ルームへ移動
+                    待機画面へ
                   </Button>
                 </Box>
               </Box>

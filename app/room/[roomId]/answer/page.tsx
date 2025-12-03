@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Container,
@@ -37,12 +37,41 @@ import QuizIcon from '@mui/icons-material/Quiz'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import ChatIcon from '@mui/icons-material/Chat'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import TimerIcon from '@mui/icons-material/Timer'
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
+import PersonIcon from '@mui/icons-material/Person'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateComment } from '@/lib/utils/validation'
 import type { Room, Question } from '@/types/database'
 
+// ローディングコンポーネント
+function AnswerPageLoading() {
+  return (
+    <Container maxWidth="sm">
+      <Box sx={{ mt: 4 }}>
+        <Paper elevation={3} sx={{ p: 3 }}>
+          <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
+          <Skeleton variant="text" width="100%" height={48} sx={{ mb: 3 }} />
+          <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2, mb: 2 }} />
+          <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2, mb: 2 }} />
+          <Skeleton variant="rectangular" height={48} sx={{ borderRadius: 2 }} />
+        </Paper>
+      </Box>
+    </Container>
+  )
+}
+
+// メインページをSuspenseでラップするためのエントリーポイント
 export default function AnswerPage() {
+  return (
+    <Suspense fallback={<AnswerPageLoading />}>
+      <AnswerPageContent />
+    </Suspense>
+  )
+}
+
+function AnswerPageContent() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -53,9 +82,9 @@ export default function AnswerPage() {
   const [allQuestions, setAllQuestions] = useState<Question[]>([])
   const [viewQuestionIndex, setViewQuestionIndex] = useState<number | null>(null)
   const [isLateAnswer, setIsLateAnswer] = useState(false)
-  const [selectedChoice, setSelectedChoice] = useState<string>('')
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(null)
   const [freeText, setFreeText] = useState('')
-  const [selectedPrediction, setSelectedPrediction] = useState<string>('')
+  const [selectedPrediction, setSelectedPrediction] = useState<string | null>(null)
   const [predictionText, setPredictionText] = useState('')
   const [comment, setComment] = useState('')
   const [hasAnswered, setHasAnswered] = useState(false)
@@ -71,6 +100,9 @@ export default function AnswerPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [showQuestionList, setShowQuestionList] = useState(false)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [timeRemaining, setTimeRemaining] = useState(180) // 3分 = 180秒
+  const [timerStarted, setTimerStarted] = useState(false)
+  const [players, setPlayers] = useState<{id: string; nickname: string; hasAnswered: boolean}[]>([])
 
   useEffect(() => {
     const initializeRoom = async () => {
@@ -140,10 +172,60 @@ export default function AnswerPage() {
     }
 
     initializeRoom()
-  }, [roomId])
+  }, [roomId, searchParams])
+
+  // タイマー処理
+  useEffect(() => {
+    if (!room || room.status !== 'answering' || isLateAnswer || hasAnswered) return
+
+    // タイマー開始
+    if (!timerStarted) {
+      setTimerStarted(true)
+      setTimeRemaining(180) // 3分リセット
+    }
+
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [room, isLateAnswer, hasAnswered, timerStarted])
+
+  // プレイヤー一覧と回答状況を取得
+  const fetchPlayersWithAnswerStatus = async (questionId: string) => {
+    const { data: playersData } = await supabase
+      .from('players')
+      .select('id, nickname')
+      .eq('room_id', roomId)
+      .order('joined_at', { ascending: true })
+
+    if (!playersData) return
+
+    const { data: answersData } = await supabase
+      .from('answers')
+      .select('player_id')
+      .eq('question_id', questionId)
+
+    const answeredPlayerIds = new Set(answersData?.map(a => a.player_id) || [])
+
+    setPlayers(playersData.map(p => ({
+      id: p.id,
+      nickname: p.nickname,
+      hasAnswered: answeredPlayerIds.has(p.id)
+    })))
+  }
 
   useEffect(() => {
     if (!currentQuestion) return
+
+    // 初回取得
+    fetchPlayersWithAnswerStatus(currentQuestion.id)
 
     const playersChannel = supabase
       .channel(`players:${roomId}`)
@@ -157,6 +239,7 @@ export default function AnswerPage() {
         },
         () => {
           fetchPlayerCount()
+          fetchPlayersWithAnswerStatus(currentQuestion.id)
         }
       )
       .subscribe()
@@ -173,6 +256,7 @@ export default function AnswerPage() {
         },
         () => {
           fetchAnsweredCount(currentQuestion.id)
+          fetchPlayersWithAnswerStatus(currentQuestion.id)
         }
       )
       .subscribe()
@@ -234,7 +318,7 @@ export default function AnswerPage() {
     if (!hasAnswered) {
       setFreeText(value)
       if (value.trim()) {
-        setSelectedChoice('')
+        setSelectedChoice(null)
       }
     }
   }
@@ -250,7 +334,7 @@ export default function AnswerPage() {
     if (!hasAnswered) {
       setPredictionText(value)
       if (value.trim()) {
-        setSelectedPrediction('')
+        setSelectedPrediction(null)
       }
     }
   }
@@ -258,8 +342,8 @@ export default function AnswerPage() {
   // 確認ダイアログを開く
   const handleOpenConfirmDialog = () => {
     if (!currentQuestion) return
-    const answer = freeText.trim() || selectedChoice
-    const prediction = isLateAnswer ? '' : (predictionText.trim() || selectedPrediction)
+    const answer = freeText.trim() || selectedChoice || ''
+    const prediction = isLateAnswer ? '' : (predictionText.trim() || selectedPrediction || '')
     if (!answer || (!isLateAnswer && !prediction) || hasAnswered) return
     setConfirmDialogOpen(true)
   }
@@ -269,8 +353,8 @@ export default function AnswerPage() {
     setConfirmDialogOpen(false)
     if (!currentQuestion) return
 
-    const answer = freeText.trim() || selectedChoice
-    const prediction = isLateAnswer ? '' : (predictionText.trim() || selectedPrediction)
+    const answer = freeText.trim() || selectedChoice || ''
+    const prediction = isLateAnswer ? '' : (predictionText.trim() || selectedPrediction || '')
     if (!answer || (!isLateAnswer && !prediction) || hasAnswered) return
 
     try {
@@ -308,14 +392,14 @@ export default function AnswerPage() {
 
   // 表示用の回答テキストを取得
   const getDisplayAnswer = () => {
-    const answer = freeText.trim() || selectedChoice
+    const answer = freeText.trim() || selectedChoice || ''
     if (answer === 'A') return `A: ${currentQuestion?.choice_a}`
     if (answer === 'B') return `B: ${currentQuestion?.choice_b}`
     return answer
   }
 
   const getDisplayPrediction = () => {
-    const prediction = predictionText.trim() || selectedPrediction
+    const prediction = predictionText.trim() || selectedPrediction || ''
     if (prediction === 'A') return `A: ${currentQuestion?.choice_a}`
     if (prediction === 'B') return `B: ${currentQuestion?.choice_b}`
     return prediction
@@ -340,8 +424,8 @@ export default function AnswerPage() {
     }
   }
 
-  const isAnswerValid = (selectedChoice !== '' || freeText.trim() !== '') &&
-                        (isLateAnswer || selectedPrediction !== '' || predictionText.trim() !== '') &&
+  const isAnswerValid = (selectedChoice !== null || freeText.trim() !== '') &&
+                        (isLateAnswer || selectedPrediction !== null || predictionText.trim() !== '') &&
                         !hasAnswered
   const allPlayersAnswered = totalPlayers > 0 && answeredCount === totalPlayers
   const progressPercent = totalPlayers > 0 ? (answeredCount / totalPlayers) * 100 : 0
@@ -416,6 +500,35 @@ export default function AnswerPage() {
                 border: '1px solid rgba(102, 126, 234, 0.3)',
               }}
             />
+            {/* タイマー表示 */}
+            {!isLateAnswer && !hasAnswered && (
+              <Chip
+                icon={<TimerIcon />}
+                label={`${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, '0')}`}
+                size="small"
+                sx={{
+                  fontWeight: 700,
+                  fontFamily: 'monospace',
+                  fontSize: '0.9rem',
+                  background: timeRemaining <= 30
+                    ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(248, 113, 113, 0.2) 100%)'
+                    : timeRemaining <= 60
+                    ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(251, 191, 36, 0.2) 100%)'
+                    : 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%)',
+                  border: timeRemaining <= 30
+                    ? '1px solid rgba(239, 68, 68, 0.4)'
+                    : timeRemaining <= 60
+                    ? '1px solid rgba(245, 158, 11, 0.4)'
+                    : '1px solid rgba(16, 185, 129, 0.3)',
+                  color: timeRemaining <= 30 ? '#dc2626' : timeRemaining <= 60 ? '#d97706' : 'inherit',
+                  animation: timeRemaining <= 30 ? 'pulse 1s ease-in-out infinite' : 'none',
+                  '@keyframes pulse': {
+                    '0%, 100%': { transform: 'scale(1)' },
+                    '50%': { transform: 'scale(1.05)' },
+                  },
+                }}
+              />
+            )}
             <Chip
               icon={<CheckCircleIcon />}
               label={`${answeredCount}/${totalPlayers}人回答`}
@@ -776,6 +889,53 @@ export default function AnswerPage() {
         </Paper>
       </Fade>
 
+      {/* 参加者一覧・回答状況 */}
+      <Fade in timeout={850}>
+        <Paper
+          elevation={3}
+          sx={{
+            p: 2,
+            mb: 2,
+            background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)',
+            borderRadius: 3,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <PersonIcon fontSize="small" color="primary" />
+              <Typography variant="subtitle2" fontWeight="bold">
+                回答状況
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              {answeredCount}/{totalPlayers}人完了
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {players.map((player) => (
+              <Chip
+                key={player.id}
+                label={player.nickname}
+                size="small"
+                icon={player.hasAnswered ? <CheckCircleIcon /> : <HourglassEmptyIcon />}
+                sx={{
+                  background: player.hasAnswered
+                    ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(52, 211, 153, 0.2) 100%)'
+                    : 'rgba(0, 0, 0, 0.05)',
+                  border: player.hasAnswered
+                    ? '1px solid rgba(16, 185, 129, 0.3)'
+                    : '1px solid rgba(0, 0, 0, 0.1)',
+                  fontWeight: player.id === playerId ? 700 : 400,
+                  '& .MuiChip-icon': {
+                    color: player.hasAnswered ? '#10b981' : '#9ca3af',
+                  },
+                }}
+              />
+            ))}
+          </Box>
+        </Paper>
+      </Fade>
+
       {/* 主催者コントロール */}
       {isHost && (
         <Fade in timeout={900}>
@@ -797,11 +957,16 @@ export default function AnswerPage() {
               color="success"
               size="large"
               onClick={handleShowResults}
-              disabled={!allPlayersAnswered}
+              disabled={answeredCount === 0}
               sx={{ py: 1.5 }}
             >
-              {allPlayersAnswered ? '結果を表示する' : `回答待ち (${answeredCount}/${totalPlayers})`}
+              {allPlayersAnswered ? '結果を表示する' : `結果を表示する (${answeredCount}/${totalPlayers}人回答済)`}
             </Button>
+            {!allPlayersAnswered && answeredCount > 0 && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
+                全員の回答を待たずに結果を表示できます
+              </Typography>
+            )}
           </Paper>
         </Fade>
       )}
