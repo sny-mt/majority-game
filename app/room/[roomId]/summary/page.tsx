@@ -10,16 +10,20 @@ import {
   Button,
   CircularProgress,
   Chip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Divider,
   Dialog,
   DialogTitle,
   DialogContent,
-  IconButton
+  IconButton,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  Snackbar,
+  Alert
 } from '@mui/material'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
 import CloseIcon from '@mui/icons-material/Close'
@@ -68,6 +72,9 @@ export default function SummaryPage() {
   const [selectedComment, setSelectedComment] = useState<{ playerName: string; comment: string } | null>(null)
   const [similarPlayers, setSimilarPlayers] = useState<SimilarPlayer[]>([])
   const [comparePlayer, setComparePlayer] = useState<SimilarPlayer | null>(null)
+  const [selectedQuestion, setSelectedQuestion] = useState<QuestionSummary | null>(null)
+  const [showTransitionSnackbar, setShowTransitionSnackbar] = useState(false)
+  const [countdown, setCountdown] = useState(3)
 
   useEffect(() => {
     const initializeSummary = async () => {
@@ -220,9 +227,10 @@ export default function SummaryPage() {
           const updatedRoom = payload.new as Room
           setRoom(updatedRoom)
 
-          // ステータスが'answering'に変わったら回答ページへ自動遷移
+          // ステータスが'answering'に変わったらカウントダウン開始
           if (updatedRoom.status === 'answering') {
-            router.push(`/room/${roomId}/answer`)
+            setShowTransitionSnackbar(true)
+            setCountdown(3)
           }
         }
       )
@@ -232,6 +240,20 @@ export default function SummaryPage() {
       roomChannel.unsubscribe()
     }
   }, [room, roomId, router])
+
+  // カウントダウン処理
+  useEffect(() => {
+    if (!showTransitionSnackbar) return
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    } else {
+      router.push(`/room/${roomId}/answer`)
+    }
+  }, [showTransitionSnackbar, countdown, router, roomId])
 
   const handlePlayerClick = (playerName: string, playerId: string, answers: Answer[]) => {
     const answer = answers.find(a => a.player_id === playerId)
@@ -580,25 +602,214 @@ export default function SummaryPage() {
         <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
           📝 質問別の結果
         </Typography>
-        {questionSummaries.map((summary, index) => (
-          <Accordion key={index}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', pr: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                  Q{index + 1}: {summary.questionText}
-                </Typography>
-                <Chip
-                  label={`回答: ${summary.totalAnswers}人`}
-                  size="small"
-                  color="primary"
-                />
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Divider sx={{ mb: 2 }} />
+        <List sx={{ py: 0 }}>
+          {questionSummaries.map((summary, index) => {
+            const majorityGroup = summary.answerGroups.find(g => g.isMajority)
+            const minorityGroups = summary.answerGroups.filter(g => !g.isMajority)
+            const myAnswer = summary.answers.find(a => a.player_id === playerId)
 
+            return (
+              <ListItem
+                key={index}
+                disablePadding
+                sx={{
+                  mb: 1.5,
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <ListItemButton
+                  onClick={() => setSelectedQuestion(summary)}
+                  sx={{
+                    py: 1.5,
+                    flexDirection: 'column',
+                    alignItems: 'stretch',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)',
+                    },
+                  }}
+                >
+                  {/* ヘッダー部分 */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', mb: 1.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                      <Chip
+                        label={`Q${index + 1}`}
+                        size="small"
+                        sx={{
+                          fontWeight: 700,
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          color: 'white',
+                          minWidth: 40,
+                        }}
+                      />
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        {summary.questionText}
+                      </Typography>
+                    </Box>
+                    <ChevronRightIcon sx={{ color: 'text.secondary', ml: 1 }} />
+                  </Box>
+
+                  {/* 回答サマリー */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, pl: 0.5 }}>
+                    {/* あなたの回答 */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 70 }}>
+                        あなた:
+                      </Typography>
+                      {myAnswer ? (
+                        <Chip
+                          label={
+                            myAnswer.answer === 'A' ? `A（${summary.choiceA}）` :
+                            myAnswer.answer === 'B' ? `B（${summary.choiceB}）` :
+                            myAnswer.answer
+                          }
+                          size="small"
+                          sx={{
+                            height: 'auto',
+                            py: 0.25,
+                            fontSize: '0.75rem',
+                            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.15) 100%)',
+                            color: '#2563eb',
+                            fontWeight: 600,
+                            '& .MuiChip-label': {
+                              whiteSpace: 'normal',
+                            },
+                          }}
+                        />
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          未回答
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {/* 多数派 */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 70 }}>
+                        多数派:
+                      </Typography>
+                      {majorityGroup ? (
+                        <Chip
+                          label={
+                            majorityGroup.answer === 'A' ? `A（${summary.choiceA}） ${majorityGroup.count}人` :
+                            majorityGroup.answer === 'B' ? `B（${summary.choiceB}） ${majorityGroup.count}人` :
+                            `${majorityGroup.answer} ${majorityGroup.count}人`
+                          }
+                          size="small"
+                          sx={{
+                            height: 'auto',
+                            py: 0.25,
+                            fontSize: '0.75rem',
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            color: '#059669',
+                            fontWeight: 600,
+                            '& .MuiChip-label': {
+                              whiteSpace: 'normal',
+                            },
+                          }}
+                        />
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          -
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {/* その他 */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 70 }}>
+                        その他:
+                      </Typography>
+                      {minorityGroups.length > 0 ? (
+                        minorityGroups.map((group, idx) => (
+                          <Chip
+                            key={idx}
+                            label={
+                              group.answer === 'A' ? `A（${summary.choiceA}） ${group.count}人` :
+                              group.answer === 'B' ? `B（${summary.choiceB}） ${group.count}人` :
+                              `${group.answer} ${group.count}人`
+                            }
+                            size="small"
+                            sx={{
+                              height: 'auto',
+                              py: 0.25,
+                              fontSize: '0.75rem',
+                              background: 'rgba(107, 114, 128, 0.1)',
+                              color: '#6b7280',
+                              fontWeight: 500,
+                              '& .MuiChip-label': {
+                                whiteSpace: 'normal',
+                              },
+                            }}
+                          />
+                        ))
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          なし
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </ListItemButton>
+              </ListItem>
+            )
+          })}
+        </List>
+      </Paper>
+
+      {/* 質問詳細ボトムシート */}
+      <Drawer
+        anchor="bottom"
+        open={!!selectedQuestion}
+        onClose={() => setSelectedQuestion(null)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: '85vh',
+          }
+        }}
+      >
+        {selectedQuestion && (
+          <>
+            {/* ドラッグハンドル */}
+            <Box
+              sx={{
+                width: 40,
+                height: 4,
+                borderRadius: 2,
+                bgcolor: 'rgba(0, 0, 0, 0.2)',
+                mx: 'auto',
+                mt: 1.5,
+                mb: 1,
+              }}
+            />
+            <Box sx={{ px: 2, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1, pr: 2 }}>
+                <Chip
+                  label={`Q${questionSummaries.findIndex(q => q.questionId === selectedQuestion.questionId) + 1}`}
+                  size="small"
+                  sx={{
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    mb: 1,
+                  }}
+                />
+                <Typography variant="h6" fontWeight="bold">
+                  {selectedQuestion.questionText}
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setSelectedQuestion(null)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            <Divider />
+            <Box sx={{ px: 2, py: 2, overflow: 'auto' }}>
               {/* マジョリティ回答 */}
-              {summary.answerGroups
+              {selectedQuestion.answerGroups
                 .filter(group => group.isMajority)
                 .map((group, groupIndex) => (
                   <Box
@@ -606,8 +817,9 @@ export default function SummaryPage() {
                     sx={{
                       mb: 2,
                       p: 2,
-                      bgcolor: 'success.light',
-                      borderRadius: 1
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      borderRadius: 2
                     }}
                   >
                     <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -624,7 +836,7 @@ export default function SummaryPage() {
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {group.players.map((playerName, idx) => {
                         const player = players.find(p => p.nickname === playerName)
-                        const answer = player ? summary.answers.find(a => a.player_id === player.id) : null
+                        const answer = player ? selectedQuestion.answers.find(a => a.player_id === player.id) : null
                         const hasComment = answer && answer.comment
 
                         return (
@@ -633,7 +845,7 @@ export default function SummaryPage() {
                             label={playerName}
                             icon={hasComment ? <ChatBubbleIcon /> : undefined}
                             size="small"
-                            onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id, summary.answers) : undefined}
+                            onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id, selectedQuestion.answers) : undefined}
                             sx={{
                               cursor: hasComment ? 'pointer' : 'default',
                               '&:hover': hasComment ? {
@@ -648,22 +860,22 @@ export default function SummaryPage() {
                 ))}
 
               {/* その他の回答 */}
-              {summary.answerGroups.filter(group => !group.isMajority).length > 0 && (
+              {selectedQuestion.answerGroups.filter(group => !group.isMajority).length > 0 && (
                 <>
                   <Typography variant="subtitle2" sx={{ mb: 1, mt: 2, fontWeight: 'bold' }}>
                     その他の回答
                   </Typography>
-                  {summary.answerGroups
+                  {selectedQuestion.answerGroups
                     .filter(group => !group.isMajority)
                     .map((group, groupIndex) => (
                       <Box
                         key={groupIndex}
-                        sx={{
+                        sx={(theme) => ({
                           mb: 1,
                           p: 2,
-                          bgcolor: 'grey.100',
-                          borderRadius: 1
-                        }}
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.100',
+                          borderRadius: 2
+                        })}
                       >
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                           <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -676,7 +888,7 @@ export default function SummaryPage() {
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {group.players.map((playerName, idx) => {
                             const player = players.find(p => p.nickname === playerName)
-                            const answer = player ? summary.answers.find(a => a.player_id === player.id) : null
+                            const answer = player ? selectedQuestion.answers.find(a => a.player_id === player.id) : null
                             const hasComment = answer && answer.comment
 
                             return (
@@ -685,7 +897,7 @@ export default function SummaryPage() {
                                 label={playerName}
                                 icon={hasComment ? <ChatBubbleIcon /> : undefined}
                                 size="small"
-                                onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id, summary.answers) : undefined}
+                                onClick={hasComment && player ? () => handlePlayerClick(playerName, player.id, selectedQuestion.answers) : undefined}
                                 sx={{
                                   cursor: hasComment ? 'pointer' : 'default',
                                   '&:hover': hasComment ? {
@@ -704,21 +916,25 @@ export default function SummaryPage() {
               {/* プレイヤーの回答状況 */}
               <Divider sx={{ my: 2 }} />
               {(() => {
-                const myAnswer = summary.answers.find(a => a.player_id === playerId)
-                const canAnswer = summary.questionIndex <= (room?.current_question_index ?? 0)
+                const myAnswer = selectedQuestion.answers.find(a => a.player_id === playerId)
+                const canAnswer = selectedQuestion.questionIndex <= (room?.current_question_index ?? 0)
 
                 if (myAnswer) {
-                  // 既に回答済み
+                  const formatAnswerDisplay = (answer: string) => {
+                    if (answer === 'A') return `${selectedQuestion.choiceA}（A）`
+                    if (answer === 'B') return `${selectedQuestion.choiceB}（B）`
+                    return answer
+                  }
                   return (
-                    <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                    <Box sx={{ p: 2, background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)', borderRadius: 2 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
                         ✅ あなたの回答
                       </Typography>
                       <Typography variant="body2">
-                        <strong>回答:</strong> {myAnswer.answer}
+                        <strong>回答:</strong> {formatAnswerDisplay(myAnswer.answer)}
                       </Typography>
                       <Typography variant="body2">
-                        <strong>予想:</strong> {myAnswer.prediction}
+                        <strong>予想:</strong> {myAnswer.prediction ? formatAnswerDisplay(myAnswer.prediction) : '-'}
                       </Typography>
                       {myAnswer.comment && (
                         <Typography variant="body2">
@@ -736,9 +952,8 @@ export default function SummaryPage() {
                     </Box>
                   )
                 } else if (canAnswer) {
-                  // 未回答だが、既に出題された問題
                   return (
-                    <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                    <Box sx={{ p: 2, background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)', borderRadius: 2 }}>
                       <Typography variant="body2" sx={{ mb: 1 }}>
                         この問題にはまだ回答していません
                       </Typography>
@@ -748,16 +963,18 @@ export default function SummaryPage() {
                       <Button
                         variant="contained"
                         size="small"
-                        onClick={() => router.push(`/room/${roomId}/answer?question=${summary.questionIndex}`)}
+                        onClick={() => {
+                          setSelectedQuestion(null)
+                          router.push(`/room/${roomId}/answer?question=${selectedQuestion.questionIndex}`)
+                        }}
                       >
                         参考記録として回答する
                       </Button>
                     </Box>
                   )
                 } else {
-                  // まだ出題されていない問題
                   return (
-                    <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                    <Box sx={(theme) => ({ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.100', borderRadius: 2 })}>
                       <Typography variant="body2" color="text.secondary">
                         まだ出題されていない問題です
                       </Typography>
@@ -765,10 +982,19 @@ export default function SummaryPage() {
                   )
                 }
               })()}
-            </AccordionDetails>
-          </Accordion>
-        ))}
-      </Paper>
+            </Box>
+            <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={() => setSelectedQuestion(null)}
+              >
+                閉じる
+              </Button>
+            </Box>
+          </>
+        )}
+      </Drawer>
 
       {/* 戻るボタン */}
       <Box sx={{ display: 'flex', gap: 2 }}>
@@ -974,6 +1200,28 @@ export default function SummaryPage() {
           ))}
         </DialogContent>
       </Dialog>
+
+      {/* 次の問題への遷移スナックバー */}
+      <Snackbar
+        open={showTransitionSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: 8 }}
+      >
+        <Alert
+          severity="info"
+          sx={{
+            width: '100%',
+            fontSize: '1.1rem',
+            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)',
+            color: 'white',
+            '& .MuiAlert-icon': {
+              color: 'white',
+            },
+          }}
+        >
+          {countdown}秒後に次の問題に移動します...
+        </Alert>
+      </Snackbar>
     </Container>
   )
 }
