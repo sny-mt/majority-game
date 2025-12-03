@@ -27,7 +27,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import GroupsIcon from '@mui/icons-material/Groups'
 import QrCodeIcon from '@mui/icons-material/QrCode'
-import { QRCodeSVG } from 'qrcode.react'
+import { QRCodeCanvas } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateRoomName, validateQuestionText, validateChoice, validateNickname } from '@/lib/utils/validation'
@@ -654,24 +654,29 @@ export default function Home() {
                   URLまたはQRコードを参加者に共有してください
                 </Typography>
 
-                {/* QRコード */}
+                {/* QRコード（長押しで保存可能） */}
                 <Box
                   sx={{
                     display: 'flex',
-                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    alignItems: 'center',
                     mb: 3,
                     p: 2,
                     borderRadius: 2,
                     background: 'white',
                   }}
                 >
-                  <QRCodeSVG
+                  <QRCodeCanvas
                     value={roomUrl}
                     size={180}
                     level="M"
                     includeMargin
                     style={{ display: 'block' }}
+                    id="qrcode-canvas"
                   />
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                    長押しで画像を保存できます
+                  </Typography>
                 </Box>
 
                 {/* URL */}
