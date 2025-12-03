@@ -65,6 +65,7 @@ export default function Home() {
   const [isLoadingPastRooms, setIsLoadingPastRooms] = useState(true)
   const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null)
   const [copied, setCopied] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState('')
 
   useEffect(() => {
     const loadPastRooms = async () => {
@@ -129,6 +130,21 @@ export default function Home() {
 
     loadPastRooms()
   }, [])
+
+  // QRコードをデータURLに変換（img要素で表示するため）
+  useEffect(() => {
+    if (!roomUrl) return
+
+    // QRCodeCanvasが生成するcanvasを取得してデータURLに変換
+    const timer = setTimeout(() => {
+      const canvas = document.querySelector('#qr-canvas-home canvas') as HTMLCanvasElement
+      if (canvas) {
+        setQrDataUrl(canvas.toDataURL('image/png'))
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [roomUrl])
 
   const addQuestion = () => {
     setQuestions([...questions, { questionText: '', choiceA: '', choiceB: '' }])
@@ -666,16 +682,33 @@ export default function Home() {
                     background: 'white',
                   }}
                 >
-                  <QRCodeCanvas
-                    value={roomUrl}
-                    size={180}
-                    level="M"
-                    includeMargin
-                    style={{ display: 'block' }}
-                    id="qrcode-canvas"
-                  />
+                  {/* 非表示のCanvas（データURL生成用） */}
+                  <Box id="qr-canvas-home" sx={{ display: 'none' }}>
+                    <QRCodeCanvas
+                      value={roomUrl}
+                      size={180}
+                      level="M"
+                      includeMargin
+                    />
+                  </Box>
+                  {/* 長押しで保存可能なimg要素 */}
+                  {qrDataUrl ? (
+                    <img
+                      src={qrDataUrl}
+                      alt="QRコード"
+                      style={{ width: 180, height: 180 }}
+                    />
+                  ) : (
+                    <QRCodeCanvas
+                      value={roomUrl}
+                      size={180}
+                      level="M"
+                      includeMargin
+                      style={{ display: 'block' }}
+                    />
+                  )}
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                    画像を保存できます（スマートフォンは長押し、パソコンは右クリック）
+                    長押しで画像を保存できます
                   </Typography>
                 </Box>
 

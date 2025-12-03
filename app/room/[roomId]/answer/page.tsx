@@ -769,11 +769,19 @@ function AnswerPageContent() {
 
               <Box sx={{ p: 2, borderRadius: 2, background: 'rgba(102, 126, 234, 0.05)', mb: 2 }}>
                 <Typography variant="body2" color="text.secondary" gutterBottom>あなたの回答</Typography>
-                <Typography variant="body1" fontWeight="600">{myAnswer}</Typography>
+                <Typography variant="body1" fontWeight="600">
+                  {myAnswer === 'A' ? `${currentQuestion?.choice_a}（A）` :
+                   myAnswer === 'B' ? `${currentQuestion?.choice_b}（B）` :
+                   myAnswer}
+                </Typography>
                 {myPrediction && (
                   <>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} gutterBottom>多数派予想</Typography>
-                    <Typography variant="body1" fontWeight="600">{myPrediction}</Typography>
+                    <Typography variant="body1" fontWeight="600">
+                      {myPrediction === 'A' ? `${currentQuestion?.choice_a}（A）` :
+                       myPrediction === 'B' ? `${currentQuestion?.choice_b}（B）` :
+                       myPrediction}
+                    </Typography>
                   </>
                 )}
               </Box>

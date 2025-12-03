@@ -42,6 +42,7 @@ export default function WaitingPage() {
   const [roomUrl, setRoomUrl] = useState('')
   const [isStarting, setIsStarting] = useState(false)
   const [showAllPlayers, setShowAllPlayers] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState('')
 
   const INITIAL_DISPLAY_COUNT = 12 // 初期表示人数
 
@@ -124,6 +125,21 @@ export default function WaitingPage() {
 
     initialize()
   }, [roomId, router])
+
+  // QRコードをデータURLに変換（img要素で表示するため）
+  useEffect(() => {
+    if (!roomUrl) return
+
+    // QRCodeCanvasが生成するcanvasを取得してデータURLに変換
+    const timer = setTimeout(() => {
+      const canvas = document.querySelector('#qr-canvas canvas') as HTMLCanvasElement
+      if (canvas) {
+        setQrDataUrl(canvas.toDataURL('image/png'))
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [roomUrl])
 
   // リアルタイム購読
   useEffect(() => {
@@ -356,12 +372,33 @@ export default function WaitingPage() {
               background: 'white',
             }}
           >
-            <QRCodeCanvas
-              value={roomUrl}
-              size={150}
-              level="M"
-              includeMargin
-            />
+            {/* 非表示のCanvas（データURL生成用） */}
+            <Box id="qr-canvas" sx={{ display: 'none' }}>
+              <QRCodeCanvas
+                value={roomUrl}
+                size={150}
+                level="M"
+                includeMargin
+              />
+            </Box>
+            {/* 長押しで保存可能なimg要素 */}
+            {qrDataUrl ? (
+              <img
+                src={qrDataUrl}
+                alt="QRコード"
+                style={{ width: 150, height: 150 }}
+              />
+            ) : (
+              <QRCodeCanvas
+                value={roomUrl}
+                size={150}
+                level="M"
+                includeMargin
+              />
+            )}
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+              長押しで画像を保存できます
+            </Typography>
           </Box>
 
           <Box
