@@ -806,13 +806,13 @@ function AnswerPageContent() {
                 >
                   <ToggleButton value="A" disabled={hasAnswered}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start' }}>
-                      <Chip label="A" size="small" color="primary" sx={{ fontWeight: 700 }} />
+                      <Chip label="A" size="small" sx={{ fontWeight: 700, bgcolor: '#ef4444', color: 'white' }} />
                       <Typography>{currentQuestion.choice_a}</Typography>
                     </Box>
                   </ToggleButton>
                   <ToggleButton value="B" disabled={hasAnswered}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start' }}>
-                      <Chip label="B" size="small" color="secondary" sx={{ fontWeight: 700 }} />
+                      <Chip label="B" size="small" sx={{ fontWeight: 700, bgcolor: '#3b82f6', color: 'white' }} />
                       <Typography>{currentQuestion.choice_b}</Typography>
                     </Box>
                   </ToggleButton>
@@ -865,13 +865,13 @@ function AnswerPageContent() {
                   >
                     <ToggleButton value="A" disabled={hasAnswered}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start' }}>
-                        <Chip label="A" size="small" color="primary" sx={{ fontWeight: 700 }} />
+                        <Chip label="A" size="small" sx={{ fontWeight: 700, bgcolor: '#ef4444', color: 'white' }} />
                         <Typography>{currentQuestion.choice_a}</Typography>
                       </Box>
                     </ToggleButton>
                     <ToggleButton value="B" disabled={hasAnswered}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start' }}>
-                        <Chip label="B" size="small" color="secondary" sx={{ fontWeight: 700 }} />
+                        <Chip label="B" size="small" sx={{ fontWeight: 700, bgcolor: '#3b82f6', color: 'white' }} />
                         <Typography>{currentQuestion.choice_b}</Typography>
                       </Box>
                     </ToggleButton>

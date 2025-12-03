@@ -679,8 +679,8 @@ export default function SummaryPage() {
                       {myAnswer ? (
                         <Chip
                           label={
-                            myAnswer.answer === 'A' ? `A（${summary.choiceA}）` :
-                            myAnswer.answer === 'B' ? `B（${summary.choiceB}）` :
+                            myAnswer.answer === 'A' ? `${summary.choiceA}（A）` :
+                            myAnswer.answer === 'B' ? `${summary.choiceB}（B）` :
                             myAnswer.answer
                           }
                           size="small"
@@ -713,8 +713,8 @@ export default function SummaryPage() {
                           <Chip
                             key={idx}
                             label={
-                              group.answer === 'A' ? `A（${summary.choiceA}） ${group.count}人` :
-                              group.answer === 'B' ? `B（${summary.choiceB}） ${group.count}人` :
+                              group.answer === 'A' ? `${summary.choiceA}（A） ${group.count}人` :
+                              group.answer === 'B' ? `${summary.choiceB}（B） ${group.count}人` :
                               `${group.answer} ${group.count}人`
                             }
                             size="small"
@@ -748,8 +748,8 @@ export default function SummaryPage() {
                           <Chip
                             key={idx}
                             label={
-                              group.answer === 'A' ? `A（${summary.choiceA}） ${group.count}人` :
-                              group.answer === 'B' ? `B（${summary.choiceB}） ${group.count}人` :
+                              group.answer === 'A' ? `${summary.choiceA}（A） ${group.count}人` :
+                              group.answer === 'B' ? `${summary.choiceB}（B） ${group.count}人` :
                               `${group.answer} ${group.count}人`
                             }
                             size="small"
