@@ -675,7 +675,7 @@ export default function Home() {
                     id="qrcode-canvas"
                   />
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                    長押しで画像を保存できます
+                    画像を保存できます（スマートフォンは長押し、パソコンは右クリック）
                   </Typography>
                 </Box>
 
