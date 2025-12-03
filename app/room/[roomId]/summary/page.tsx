@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Container,
@@ -114,15 +114,29 @@ export default function SummaryPage() {
         if (playersError) throw playersError
         setPlayers(playersData || [])
 
-        // 各質問の集計結果を取得（並列化でパフォーマンス向上）
-        const summaries: QuestionSummary[] = await Promise.all(
-          (questionsData || []).map(async (question, index) => {
-            const { data: answersData } = await supabase
-              .from('answers')
-              .select('*')
-              .eq('question_id', question.id)
+        // 全質問の回答を1回のクエリで取得（N+1問題解消）
+        const questionIds = (questionsData || []).map(q => q.id)
+        const { data: allAnswersData, error: answersError } = await supabase
+          .from('answers')
+          .select('*')
+          .in('question_id', questionIds)
 
-            if (answersData && answersData.length > 0) {
+        if (answersError) throw answersError
+
+        // 質問IDごとに回答をグループ化
+        const answersMap = new Map<string, Answer[]>()
+        ;(allAnswersData || []).forEach(answer => {
+          const answers = answersMap.get(answer.question_id) || []
+          answers.push(answer)
+          answersMap.set(answer.question_id, answers)
+        })
+
+        // 各質問の集計結果を作成
+        const summaries: QuestionSummary[] = (questionsData || [])
+          .map(question => {
+            const answersData = answersMap.get(question.id) || []
+
+            if (answersData.length > 0) {
               const answerGroups = aggregateAnswers(
                 answersData,
                 playersData || [],
@@ -146,7 +160,7 @@ export default function SummaryPage() {
             }
             return null
           })
-        ).then(results => results.filter((s): s is QuestionSummary => s !== null))
+          .filter((s): s is QuestionSummary => s !== null)
 
         setQuestionSummaries(summaries)
 
@@ -275,15 +289,15 @@ export default function SummaryPage() {
   }
 
   // 回答を表示用にフォーマット（A/Bの場合は選択肢名を表示）
-  const formatAnswer = (answer: string | undefined, choiceA: string, choiceB: string) => {
+  const formatAnswer = useCallback((answer: string | undefined, choiceA: string, choiceB: string) => {
     if (!answer) return '未回答'
     if (answer === 'A') return `A: ${choiceA}`
     if (answer === 'B') return `B: ${choiceB}`
     return answer
-  }
+  }, [])
 
-  // 比較用のデータを取得
-  const getComparisonData = () => {
+  // 比較用のデータをメモ化（comparePlayer変更時のみ再計算）
+  const comparisonData = useMemo(() => {
     if (!comparePlayer) return []
 
     return questionSummaries.map(summary => {
@@ -301,7 +315,7 @@ export default function SummaryPage() {
         isMatch
       }
     })
-  }
+  }, [comparePlayer, questionSummaries, playerId, formatAnswer])
 
   if (isLoading) {
     return (
@@ -499,7 +513,9 @@ export default function SummaryPage() {
             </Typography>
           )}
           {similarPlayers.slice(0, 5).map((similar, index) => {
-            const isTopMatch = index === 0
+            // 同率1位もベストマッチにする（最高一致数と同じ人はベストマッチ）
+            const topMatchCount = similarPlayers.length > 0 ? similarPlayers[0].matchCount : 0
+            const isTopMatch = similar.matchCount === topMatchCount
             return (
               <Box
                 key={similar.playerId}
@@ -548,19 +564,21 @@ export default function SummaryPage() {
                     {isTopMatch ? <FavoriteIcon /> : <PeopleIcon fontSize="small" />}
                   </Box>
                   <Box>
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        fontWeight: isTopMatch ? 700 : 500,
-                      }}
-                    >
-                      {similar.nickname}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography
+                        variant="body1"
+                        component="span"
+                        sx={{
+                          fontWeight: isTopMatch ? 700 : 500,
+                        }}
+                      >
+                        {similar.nickname}
+                      </Typography>
                       {isTopMatch && (
                         <Chip
                           label="ベストマッチ"
                           size="small"
                           sx={{
-                            ml: 1,
                             background: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
                             color: 'white',
                             fontWeight: 600,
@@ -568,7 +586,7 @@ export default function SummaryPage() {
                           }}
                         />
                       )}
-                    </Typography>
+                    </Box>
                     <Typography variant="caption" color="text.secondary">
                       {similar.matchedQuestions.slice(0, 2).map((q, i) => (
                         <span key={i}>Q{questionSummaries.findIndex(s => s.questionText === q) + 1}{i < Math.min(similar.matchedQuestions.length, 2) - 1 ? ', ' : ''}</span>
@@ -604,7 +622,7 @@ export default function SummaryPage() {
         </Typography>
         <List sx={{ py: 0 }}>
           {questionSummaries.map((summary, index) => {
-            const majorityGroup = summary.answerGroups.find(g => g.isMajority)
+            const majorityGroups = summary.answerGroups.filter(g => g.isMajority)
             const minorityGroups = summary.answerGroups.filter(g => !g.isMajority)
             const myAnswer = summary.answers.find(a => a.player_id === playerId)
 
@@ -686,30 +704,33 @@ export default function SummaryPage() {
                     </Box>
 
                     {/* 多数派 */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                       <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 70 }}>
                         多数派:
                       </Typography>
-                      {majorityGroup ? (
-                        <Chip
-                          label={
-                            majorityGroup.answer === 'A' ? `A（${summary.choiceA}） ${majorityGroup.count}人` :
-                            majorityGroup.answer === 'B' ? `B（${summary.choiceB}） ${majorityGroup.count}人` :
-                            `${majorityGroup.answer} ${majorityGroup.count}人`
-                          }
-                          size="small"
-                          sx={{
-                            height: 'auto',
-                            py: 0.25,
-                            fontSize: '0.75rem',
-                            background: 'rgba(16, 185, 129, 0.15)',
-                            color: '#059669',
-                            fontWeight: 600,
-                            '& .MuiChip-label': {
-                              whiteSpace: 'normal',
-                            },
-                          }}
-                        />
+                      {majorityGroups.length > 0 ? (
+                        majorityGroups.map((group, idx) => (
+                          <Chip
+                            key={idx}
+                            label={
+                              group.answer === 'A' ? `A（${summary.choiceA}） ${group.count}人` :
+                              group.answer === 'B' ? `B（${summary.choiceB}） ${group.count}人` :
+                              `${group.answer} ${group.count}人`
+                            }
+                            size="small"
+                            sx={{
+                              height: 'auto',
+                              py: 0.25,
+                              fontSize: '0.75rem',
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: '#059669',
+                              fontWeight: 600,
+                              '& .MuiChip-label': {
+                                whiteSpace: 'normal',
+                              },
+                            }}
+                          />
+                        ))
                       ) : (
                         <Typography variant="caption" color="text.secondary">
                           -
@@ -1099,7 +1120,7 @@ export default function SummaryPage() {
             </Typography>
           </Box>
 
-          {getComparisonData().map((item, index) => (
+          {comparisonData.map((item, index) => (
             <Box
               key={index}
               sx={{

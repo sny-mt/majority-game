@@ -178,7 +178,11 @@ export default function ResultPage() {
         let currentPlayerGotItRight = false
 
         if (majorityAnswers.length > 0) {
-          const updatePromises = answersData.map(async (answer) => {
+          // 1. まずメモリ上で全ての計算を完了（DB更新は後で一括）
+          const answersToUpdate: { id: string; isCorrect: boolean; points: number }[] = []
+
+          answersData.forEach((answer) => {
+            // 既に計算済みの場合はスキップ
             if (answer.is_correct_prediction !== false || answer.points_earned !== 0) {
               if (answer.player_id === pid && answer.is_correct_prediction) {
                 currentPlayerGotItRight = true
@@ -190,28 +194,17 @@ export default function ResultPage() {
             let isCorrect = false
 
             // 予想がマジョリティ回答と一致するかチェック
-            // 1. 予想の元の値(A/B/自由記述)がマジョリティの元の値と一致
             if (majorityRawAnswers.includes(prediction)) {
               isCorrect = true
-            }
-            // 2. 予想がAで、マジョリティが選択肢Aの場合
-            else if (prediction === 'A' && majorityRawAnswers.includes('A')) {
+            } else if (prediction === 'A' && majorityRawAnswers.includes('A')) {
               isCorrect = true
-            }
-            // 3. 予想がBで、マジョリティが選択肢Bの場合
-            else if (prediction === 'B' && majorityRawAnswers.includes('B')) {
+            } else if (prediction === 'B' && majorityRawAnswers.includes('B')) {
               isCorrect = true
-            }
-            // 4. 予想が選択肢Aの内容と一致し、Aがマジョリティの場合
-            else if (prediction === questionData.choice_a && majorityRawAnswers.includes('A')) {
+            } else if (prediction === questionData.choice_a && majorityRawAnswers.includes('A')) {
               isCorrect = true
-            }
-            // 5. 予想が選択肢Bの内容と一致し、Bがマジョリティの場合
-            else if (prediction === questionData.choice_b && majorityRawAnswers.includes('B')) {
+            } else if (prediction === questionData.choice_b && majorityRawAnswers.includes('B')) {
               isCorrect = true
-            }
-            // 6. 自由記述同士の部分一致（従来のロジック）
-            else {
+            } else {
               for (const majorityAnswer of majorityAnswers) {
                 if (prediction === majorityAnswer) {
                   isCorrect = true
@@ -225,25 +218,18 @@ export default function ResultPage() {
 
             // ポイント計算
             let points = isCorrect ? 10 : 0
-
-            // 自由記述で完全一致した場合のボーナス: 一致人数 × 5pt
             const answerText = answer.answer
             if (answerText !== 'A' && answerText !== 'B') {
               const matchCount = freeTextAnswerCounts.get(answerText) || 0
               if (matchCount >= 2) {
-                // 2人以上で一致した場合にボーナス付与
                 points += matchCount * 5
               }
             }
 
-            await supabase
-              .from('answers')
-              .update({
-                is_correct_prediction: isCorrect,
-                points_earned: points
-              })
-              .eq('id', answer.id)
+            // 更新対象リストに追加
+            answersToUpdate.push({ id: answer.id, isCorrect, points })
 
+            // メモリ上でも更新
             answer.is_correct_prediction = isCorrect
             answer.points_earned = points
 
@@ -251,7 +237,6 @@ export default function ResultPage() {
               if (isCorrect) {
                 currentPlayerGotItRight = true
               }
-              // 自由記述ボーナスを計算
               if (answerText !== 'A' && answerText !== 'B') {
                 const matchCount = freeTextAnswerCounts.get(answerText) || 0
                 if (matchCount >= 2) {
@@ -261,10 +246,19 @@ export default function ResultPage() {
             }
           })
 
-          await Promise.all(updatePromises)
+          // 2. 回答のDB更新（並列実行）
+          if (answersToUpdate.length > 0) {
+            await Promise.all(
+              answersToUpdate.map(({ id, isCorrect, points }) =>
+                supabase
+                  .from('answers')
+                  .update({ is_correct_prediction: isCorrect, points_earned: points })
+                  .eq('id', id)
+              )
+            )
+          }
 
-          const playerScores = new Map<string, number>()
-
+          // 3. スコア計算（メモリ上で計算してから一括更新）
           const { data: roomQuestionsData } = await supabase
             .from('questions')
             .select('id')
@@ -276,24 +270,26 @@ export default function ResultPage() {
             const { data: allAnswersData } = await supabase
               .from('answers')
               .select('player_id, points_earned')
-              .in('player_id', playersData.map(p => p.id))
               .in('question_id', questionIds)
 
             if (allAnswersData) {
+              // プレイヤーごとのスコアをメモリ上で集計
+              const playerScores = new Map<string, number>()
               for (const answer of allAnswersData) {
                 const currentScore = playerScores.get(answer.player_id) || 0
                 playerScores.set(answer.player_id, currentScore + (answer.points_earned || 0))
               }
 
-              const scoreUpdatePromises = Array.from(playerScores.entries()).map(async ([playerId, totalScore]) => {
-                await supabase
-                  .from('players')
-                  .update({ score: totalScore })
-                  .eq('id', playerId)
-                  .eq('room_id', roomId)
-              })
-
-              await Promise.all(scoreUpdatePromises)
+              // プレイヤースコアの一括更新（並列実行）
+              await Promise.all(
+                Array.from(playerScores.entries()).map(([playerId, totalScore]) =>
+                  supabase
+                    .from('players')
+                    .update({ score: totalScore })
+                    .eq('id', playerId)
+                    .eq('room_id', roomId)
+                )
+              )
             }
           }
         }

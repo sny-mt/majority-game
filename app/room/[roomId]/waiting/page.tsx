@@ -101,25 +101,57 @@ export default function WaitingPage() {
   useEffect(() => {
     if (!room) return
 
-    // プレイヤーの参加を監視
+    // プレイヤーの参加を監視（差分更新で最適化）
     const playersChannel = supabase
       .channel(`waiting_players:${roomId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'players',
           filter: `room_id=eq.${roomId}`
         },
-        async () => {
-          const { data } = await supabase
-            .from('players')
-            .select('*')
-            .eq('room_id', roomId)
-            .order('joined_at', { ascending: true })
-
-          if (data) setPlayers(data)
+        (payload) => {
+          // 新規プレイヤーを追加（既存リストに追加するだけ）
+          const newPlayer = payload.new as Player
+          setPlayers(prev => {
+            // 重複チェック
+            if (prev.some(p => p.id === newPlayer.id)) return prev
+            return [...prev, newPlayer].sort((a, b) =>
+              new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
+            )
+          })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'players',
+          filter: `room_id=eq.${roomId}`
+        },
+        (payload) => {
+          // プレイヤーを削除
+          const deletedPlayer = payload.old as Player
+          setPlayers(prev => prev.filter(p => p.id !== deletedPlayer.id))
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'players',
+          filter: `room_id=eq.${roomId}`
+        },
+        (payload) => {
+          // プレイヤー情報を更新
+          const updatedPlayer = payload.new as Player
+          setPlayers(prev => prev.map(p =>
+            p.id === updatedPlayer.id ? updatedPlayer : p
+          ))
         }
       )
       .subscribe()
@@ -150,7 +182,7 @@ export default function WaitingPage() {
       playersChannel.unsubscribe()
       roomChannel.unsubscribe()
     }
-  }, [room, roomId, router])
+  }, [room?.id, roomId, router])
 
   const handleStartGame = async () => {
     if (!isHost || players.length < 1) return

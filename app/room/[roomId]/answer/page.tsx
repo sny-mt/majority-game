@@ -222,48 +222,12 @@ function AnswerPageContent() {
     })))
   }
 
+  // ルームステータス購読（roomIdのみに依存）
   useEffect(() => {
-    if (!currentQuestion) return
-
-    // 初回取得
-    fetchPlayersWithAnswerStatus(currentQuestion.id)
-
-    const playersChannel = supabase
-      .channel(`players:${roomId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'players',
-          filter: `room_id=eq.${roomId}`
-        },
-        () => {
-          fetchPlayerCount()
-          fetchPlayersWithAnswerStatus(currentQuestion.id)
-        }
-      )
-      .subscribe()
-
-    const answersChannel = supabase
-      .channel(`answers:${currentQuestion.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'answers',
-          filter: `question_id=eq.${currentQuestion.id}`
-        },
-        () => {
-          fetchAnsweredCount(currentQuestion.id)
-          fetchPlayersWithAnswerStatus(currentQuestion.id)
-        }
-      )
-      .subscribe()
+    if (!room) return
 
     const roomChannel = supabase
-      .channel(`room:${roomId}`)
+      .channel(`room_answer:${roomId}`)
       .on(
         'postgres_changes',
         {
@@ -284,11 +248,61 @@ function AnswerPageContent() {
       .subscribe()
 
     return () => {
-      playersChannel.unsubscribe()
-      answersChannel.unsubscribe()
       roomChannel.unsubscribe()
     }
-  }, [currentQuestion, roomId, router])
+  }, [room?.id, roomId, router])
+
+  // プレイヤー購読（roomIdのみに依存）
+  useEffect(() => {
+    const playersChannel = supabase
+      .channel(`players_answer:${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'players',
+          filter: `room_id=eq.${roomId}`
+        },
+        () => {
+          fetchPlayerCount()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      playersChannel.unsubscribe()
+    }
+  }, [roomId])
+
+  // 回答購読（currentQuestionに依存）
+  useEffect(() => {
+    if (!currentQuestion) return
+
+    // 初回取得
+    fetchPlayersWithAnswerStatus(currentQuestion.id)
+
+    const answersChannel = supabase
+      .channel(`answers_answer:${currentQuestion.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'answers',
+          filter: `question_id=eq.${currentQuestion.id}`
+        },
+        () => {
+          fetchAnsweredCount(currentQuestion.id)
+          fetchPlayersWithAnswerStatus(currentQuestion.id)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      answersChannel.unsubscribe()
+    }
+  }, [currentQuestion?.id])
 
   const fetchPlayerCount = async () => {
     const { count } = await supabase
