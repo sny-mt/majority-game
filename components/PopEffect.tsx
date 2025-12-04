@@ -100,11 +100,11 @@ export function useShakeEffect() {
 
   const shake = () => {
     setIsShaking(true)
-    setTimeout(() => setIsShaking(false), 400)
+    setTimeout(() => setIsShaking(false), 1000)
   }
 
   const shakeStyle = isShaking ? {
-    animation: 'shake 0.4s ease-in-out 1',
+    animation: 'shake 0.2s ease-in-out 5',
     '@keyframes shake': {
       '0%, 100%': { transform: 'translateX(0)' },
       '25%': { transform: 'translateX(-4px)' },
