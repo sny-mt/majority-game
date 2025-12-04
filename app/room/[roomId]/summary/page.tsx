@@ -921,41 +921,15 @@ export default function SummaryPage() {
                   {selectedQuestion.questionText}
                 </Typography>
                 {/* 選択肢を表示 */}
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                  <Box
-                    sx={{
-                      flex: '1 1 auto',
-                      minWidth: 120,
-                      p: 1.5,
-                      borderRadius: 2,
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 700 }}>
-                      A
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {selectedQuestion.choiceA}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      flex: '1 1 auto',
-                      minWidth: 120,
-                      p: 1.5,
-                      borderRadius: 2,
-                      background: 'rgba(59, 130, 246, 0.1)',
-                      border: '1px solid rgba(59, 130, 246, 0.3)',
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ color: '#3b82f6', fontWeight: 700 }}>
-                      B
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {selectedQuestion.choiceB}
-                    </Typography>
-                  </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Typography variant="body2">
+                    <Box component="span" sx={{ color: '#ef4444', fontWeight: 700, mr: 1 }}>A</Box>
+                    {selectedQuestion.choiceA}
+                  </Typography>
+                  <Typography variant="body2">
+                    <Box component="span" sx={{ color: '#3b82f6', fontWeight: 700, mr: 1 }}>B</Box>
+                    {selectedQuestion.choiceB}
+                  </Typography>
                 </Box>
               </Box>
               <IconButton onClick={() => setSelectedQuestion(null)} size="small">
