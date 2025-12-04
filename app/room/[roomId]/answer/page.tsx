@@ -874,6 +874,11 @@ function AnswerPageContent() {
                   onChange={(e) => handleFreeTextChange(e.target.value)}
                   disabled={hasAnswered}
                   size="small"
+                  helperText={
+                    <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 500 }}>
+                      💡 自由記述で他の人と完全一致すると、一致人数×5ptボーナス！
+                    </Typography>
+                  }
                 />
               </Box>
 
@@ -966,7 +971,7 @@ function AnswerPageContent() {
                   fullWidth
                   multiline
                   rows={2}
-                  placeholder="面白いコメントを残そう！"
+                  placeholder="理由やエピソードを書くと盛り上がる！（例：「昔○○だったから」「絶対こっち派！」）"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   disabled={hasAnswered}
