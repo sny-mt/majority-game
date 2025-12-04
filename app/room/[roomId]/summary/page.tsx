@@ -339,6 +339,8 @@ export default function SummaryPage() {
       return {
         questionText: summary.questionText,
         questionIndex: summary.questionIndex,
+        choiceA: summary.choiceA,
+        choiceB: summary.choiceB,
         myAnswer: formatAnswer(myAnswer?.answer, summary.choiceA, summary.choiceB),
         theirAnswer: formatAnswer(theirAnswer?.answer, summary.choiceA, summary.choiceB),
         myComment: myAnswer?.comment || null,
@@ -1251,15 +1253,27 @@ export default function SummaryPage() {
                   : '1px solid rgba(0, 0, 0, 0.05)',
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                {item.isMatch ? (
-                  <CheckIcon sx={{ color: '#10b981', fontSize: 20 }} />
-                ) : (
-                  <ClearIcon sx={{ color: '#94a3b8', fontSize: 20 }} />
-                )}
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                  Q{item.questionIndex + 1}: {item.questionText}
-                </Typography>
+              <Box sx={{ mb: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  {item.isMatch ? (
+                    <CheckIcon sx={{ color: '#10b981', fontSize: 20 }} />
+                  ) : (
+                    <ClearIcon sx={{ color: '#94a3b8', fontSize: 20 }} />
+                  )}
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                    Q{item.questionIndex + 1}: {item.questionText}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, pl: 3.5 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    <Box component="span" sx={{ color: '#ef4444', fontWeight: 700, mr: 0.5 }}>A</Box>
+                    {item.choiceA}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    <Box component="span" sx={{ color: '#3b82f6', fontWeight: 700, mr: 0.5 }}>B</Box>
+                    {item.choiceB}
+                  </Typography>
+                </Box>
               </Box>
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <Box sx={{ flex: 1 }}>
