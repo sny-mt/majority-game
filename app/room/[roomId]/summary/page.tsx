@@ -673,13 +673,17 @@ export default function SummaryPage() {
                       </Typography>
                       {isTopMatch && (
                         <Chip
-                          label="ベストマッチ"
+                          label="Best"
                           size="small"
                           sx={{
                             background: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
                             color: 'white',
                             fontWeight: 600,
-                            fontSize: '0.7rem',
+                            fontSize: '0.6rem',
+                            height: 18,
+                            '& .MuiChip-label': {
+                              px: 0.75,
+                            },
                           }}
                         />
                       )}
