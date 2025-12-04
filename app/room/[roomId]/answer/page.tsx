@@ -971,7 +971,7 @@ function AnswerPageContent() {
                   fullWidth
                   multiline
                   rows={2}
-                  placeholder="理由やエピソードを書くと盛り上がる！（例：「昔○○だったから」「絶対こっち派！」）"
+                  placeholder="選んだ理由やエピソードを一言！"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   disabled={hasAnswered}

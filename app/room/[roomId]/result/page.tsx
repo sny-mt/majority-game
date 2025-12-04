@@ -76,6 +76,8 @@ export default function ResultPage() {
   const [majorityCountAnimation, setMajorityCountAnimation] = useState(0)
   const { shake, shakeStyle, isShaking } = useShakeEffect()
   const [currentPlayerIncorrect, setCurrentPlayerIncorrect] = useState(false)
+  const [myAnswer, setMyAnswer] = useState<string>('')
+  const [myPrediction, setMyPrediction] = useState<string>('')
 
   useEffect(() => {
     const initializeResult = async () => {
@@ -331,10 +333,33 @@ export default function ResultPage() {
         setAnswers(answersData)
         setCurrentPlayerCorrect(currentPlayerGotItRight)
 
-        // 不正解チェック（予想したが外れた場合）
-        const myAnswer = answersData.find(a => a.player_id === pid)
-        if (myAnswer && myAnswer.prediction && !currentPlayerGotItRight) {
-          setCurrentPlayerIncorrect(true)
+        // 自分の回答と予想を保存
+        const myAnswerData = answersData.find(a => a.player_id === pid)
+        if (myAnswerData) {
+          // 回答をわかりやすい形式に変換
+          let answerDisplay = myAnswerData.answer
+          if (answerDisplay === 'A') {
+            answerDisplay = `${questionData.choice_a}（A）`
+          } else if (answerDisplay === 'B') {
+            answerDisplay = `${questionData.choice_b}（B）`
+          }
+          setMyAnswer(answerDisplay)
+
+          // 予想をわかりやすい形式に変換
+          if (myAnswerData.prediction) {
+            let predictionDisplay = myAnswerData.prediction
+            if (predictionDisplay === 'A') {
+              predictionDisplay = `${questionData.choice_a}（A）`
+            } else if (predictionDisplay === 'B') {
+              predictionDisplay = `${questionData.choice_b}（B）`
+            }
+            setMyPrediction(predictionDisplay)
+          }
+
+          // 不正解チェック（予想したが外れた場合）
+          if (myAnswerData.prediction && !currentPlayerGotItRight) {
+            setCurrentPlayerIncorrect(true)
+          }
         }
 
         setResult({
@@ -691,6 +716,59 @@ export default function ResultPage() {
           </Typography>
         </Box>
       </Fade>
+
+      {/* 自分の回答と予想 */}
+      {(myAnswer || myPrediction) && (
+        <Fade in timeout={600}>
+          <Paper
+            elevation={2}
+            sx={{
+              p: 2,
+              mb: 3,
+              borderRadius: 3,
+              background: (theme) =>
+                theme.palette.mode === 'dark'
+                  ? 'rgba(102, 126, 234, 0.1)'
+                  : 'rgba(102, 126, 234, 0.05)',
+              border: '1px solid rgba(102, 126, 234, 0.2)',
+            }}
+          >
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+              あなたの回答
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {myAnswer && (
+                <Box sx={{ flex: 1, minWidth: 120 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    意見
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {myAnswer}
+                  </Typography>
+                </Box>
+              )}
+              {myPrediction && (
+                <Box sx={{ flex: 1, minWidth: 120 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    多数派予想
+                  </Typography>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      fontWeight: 600,
+                      color: currentPlayerCorrect ? '#10b981' : currentPlayerIncorrect ? '#ef4444' : 'inherit',
+                    }}
+                  >
+                    {myPrediction}
+                    {currentPlayerCorrect && ' ✓'}
+                    {currentPlayerIncorrect && ' ✗'}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Paper>
+        </Fade>
+      )}
 
       {/* 予想的中メッセージ */}
       {currentPlayerCorrect && (
