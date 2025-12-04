@@ -28,7 +28,7 @@ interface TutorialStep {
 
 // スマホ画面のモックアップSVG
 const PhoneMockup = ({ children, color }: { children: React.ReactNode; color: string }) => (
-  <svg width="160" height="200" viewBox="0 0 160 200" fill="none">
+  <svg width="140" height="175" viewBox="0 0 160 200" fill="none" style={{ maxWidth: '100%', height: 'auto' }}>
     {/* スマホ外枠 */}
     <rect x="10" y="5" width="140" height="190" rx="16" fill="#1a1a2e" />
     <rect x="14" y="12" width="132" height="176" rx="12" fill="white" />
@@ -258,6 +258,7 @@ export function HowToPlayDialog({ open, onClose }: HowToPlayDialogProps) {
           borderRadius: 4,
           overflow: 'hidden',
           m: 2,
+          maxHeight: 'calc(100vh - 32px)',
         },
       }}
     >
@@ -275,7 +276,7 @@ export function HowToPlayDialog({ open, onClose }: HowToPlayDialogProps) {
         <CloseIcon />
       </IconButton>
 
-      <DialogContent sx={{ p: 0 }}>
+      <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* メインコンテンツ */}
         <Box
           sx={{
@@ -283,9 +284,12 @@ export function HowToPlayDialog({ open, onClose }: HowToPlayDialogProps) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            minHeight: 420,
-            p: 3,
-            pt: 5,
+            flex: 1,
+            minHeight: 0,
+            p: 2,
+            pt: 4,
+            pb: 2,
+            overflow: 'auto',
             background: `linear-gradient(135deg, ${currentStep.color}15 0%, ${currentStep.color}08 100%)`,
             transition: 'background 0.3s ease',
           }}
@@ -306,13 +310,13 @@ export function HowToPlayDialog({ open, onClose }: HowToPlayDialogProps) {
           {/* 画面イメージ */}
           <Box
             sx={{
-              mb: 3,
+              mb: 2,
               animation: 'slideIn 0.4s ease-out',
               '@keyframes slideIn': {
                 '0%': { transform: 'translateX(20px)', opacity: 0 },
                 '100%': { transform: 'translateX(0)', opacity: 1 },
               },
-              filter: `drop-shadow(0 10px 30px ${currentStep.color}30)`,
+              filter: `drop-shadow(0 8px 20px ${currentStep.color}25)`,
             }}
           >
             {currentStep.image}
@@ -320,11 +324,11 @@ export function HowToPlayDialog({ open, onClose }: HowToPlayDialogProps) {
 
           {/* タイトル */}
           <Typography
-            variant="h5"
+            variant="h6"
             sx={{
               fontWeight: 700,
               textAlign: 'center',
-              mb: 1.5,
+              mb: 1,
             }}
           >
             {currentStep.title}
@@ -336,9 +340,9 @@ export function HowToPlayDialog({ open, onClose }: HowToPlayDialogProps) {
             sx={{
               color: 'text.secondary',
               textAlign: 'center',
-              lineHeight: 1.8,
+              lineHeight: 1.6,
               maxWidth: 280,
-              px: 2,
+              fontSize: '0.85rem',
             }}
           >
             {currentStep.description}
@@ -351,9 +355,11 @@ export function HowToPlayDialog({ open, onClose }: HowToPlayDialogProps) {
           position="static"
           activeStep={activeStep}
           sx={{
-            background: 'transparent',
+            background: 'white',
+            flexShrink: 0,
             px: 2,
-            py: 2,
+            py: 1.5,
+            borderTop: '1px solid rgba(0,0,0,0.08)',
             '& .MuiMobileStepper-dot': {
               width: 10,
               height: 10,
