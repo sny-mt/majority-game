@@ -905,7 +905,7 @@ export default function SummaryPage() {
                 mb: 1,
               }}
             />
-            <Box sx={{ px: 2, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box sx={{ px: 2, pb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <Box sx={{ flex: 1, pr: 2 }}>
                 <Chip
                   label={`Q${questionSummaries.findIndex(q => q.questionId === selectedQuestion.questionId) + 1}`}
@@ -917,9 +917,46 @@ export default function SummaryPage() {
                     mb: 1,
                   }}
                 />
-                <Typography variant="h6" fontWeight="bold">
+                <Typography variant="h6" fontWeight="bold" sx={{ mb: 1.5 }}>
                   {selectedQuestion.questionText}
                 </Typography>
+                {/* 選択肢を表示 */}
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <Box
+                    sx={{
+                      flex: '1 1 auto',
+                      minWidth: 120,
+                      p: 1.5,
+                      borderRadius: 2,
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 700 }}>
+                      A
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {selectedQuestion.choiceA}
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      flex: '1 1 auto',
+                      minWidth: 120,
+                      p: 1.5,
+                      borderRadius: 2,
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ color: '#3b82f6', fontWeight: 700 }}>
+                      B
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {selectedQuestion.choiceB}
+                    </Typography>
+                  </Box>
+                </Box>
               </Box>
               <IconButton onClick={() => setSelectedQuestion(null)} size="small">
                 <CloseIcon />
