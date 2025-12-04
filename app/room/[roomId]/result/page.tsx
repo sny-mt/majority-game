@@ -242,12 +242,6 @@ export default function ResultPage() {
               if (isCorrect) {
                 currentPlayerGotItRight = true
               }
-              if (answerText !== 'A' && answerText !== 'B') {
-                const matchCount = freeTextAnswerCounts.get(answerText) || 0
-                if (matchCount >= 2) {
-                  setCurrentPlayerFreeTextBonus(matchCount * 5)
-                }
-              }
             }
           })
 
@@ -336,6 +330,15 @@ export default function ResultPage() {
         // 自分の回答と予想を保存
         const myAnswerData = answersData.find(a => a.player_id === pid)
         if (myAnswerData) {
+          // シンクロボーナスを計算（既に計算済みの場合も表示するため、常にチェック）
+          const myAnswerText = myAnswerData.answer
+          if (myAnswerText !== 'A' && myAnswerText !== 'B') {
+            const matchCount = freeTextAnswerCounts.get(myAnswerText) || 0
+            if (matchCount >= 2) {
+              setCurrentPlayerFreeTextBonus(matchCount * 5)
+            }
+          }
+
           // 回答をわかりやすい形式に変換
           let answerDisplay = myAnswerData.answer
           if (answerDisplay === 'A') {
