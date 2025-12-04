@@ -1178,9 +1178,9 @@ export default function SummaryPage() {
         <DialogContent>
           <Paper
             elevation={0}
-            sx={{
+            sx={(theme) => ({
               p: 3,
-              bgcolor: 'grey.100',
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'grey.100',
               borderRadius: 2,
               position: 'relative',
               '&::before': {
@@ -1193,9 +1193,9 @@ export default function SummaryPage() {
                 borderLeft: '10px solid transparent',
                 borderRight: '10px solid transparent',
                 borderBottom: '10px solid',
-                borderBottomColor: 'grey.100'
+                borderBottomColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'grey.100'
               }
-            }}
+            })}
           >
             <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
               {selectedComment?.comment}
