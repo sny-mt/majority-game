@@ -23,9 +23,11 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import QrCodeIcon from '@mui/icons-material/QrCode'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import { QRCodeCanvas } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { HowToPlayDialog } from '@/components/HowToPlayDialog'
 import type { Room, Player } from '@/types/database'
 
 export default function WaitingPage() {
@@ -43,6 +45,7 @@ export default function WaitingPage() {
   const [isStarting, setIsStarting] = useState(false)
   const [showAllPlayers, setShowAllPlayers] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
+  const [showHowToPlay, setShowHowToPlay] = useState(false)
 
   const INITIAL_DISPLAY_COUNT = 12 // 初期表示人数
 
@@ -340,8 +343,34 @@ export default function WaitingPage() {
           <Typography variant="body2" color="text.secondary">
             参加者を待っています...
           </Typography>
+
+          {/* 遊び方ボタン */}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<HelpOutlineIcon />}
+            onClick={() => setShowHowToPlay(true)}
+            sx={{
+              mt: 2,
+              borderRadius: 3,
+              borderColor: 'rgba(102, 126, 234, 0.5)',
+              color: '#667eea',
+              '&:hover': {
+                borderColor: '#667eea',
+                background: 'rgba(102, 126, 234, 0.08)',
+              },
+            }}
+          >
+            遊び方を見る
+          </Button>
         </Box>
       </Fade>
+
+      {/* 遊び方ダイアログ */}
+      <HowToPlayDialog
+        open={showHowToPlay}
+        onClose={() => setShowHowToPlay(false)}
+      />
 
       {/* QRコードと招待リンク */}
       <Grow in timeout={600}>
