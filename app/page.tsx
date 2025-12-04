@@ -344,7 +344,110 @@ export default function Home() {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ pb: 6, pt: 2 }}>
+    <Box
+      sx={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: 'auto',
+        background: (theme) => theme.palette.mode === 'dark'
+          ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)'
+          : 'linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 50%, #d1d8e5 100%)',
+      }}
+    >
+      {/* Blob アニメーション背景 */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      >
+        {/* Blob 1 - 紫 */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '-20%',
+            left: '-10%',
+            width: '50vmax',
+            height: '50vmax',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.4) 0%, rgba(118, 75, 162, 0.4) 100%)',
+            filter: 'blur(60px)',
+            animation: 'blob1 20s ease-in-out infinite',
+            '@keyframes blob1': {
+              '0%, 100%': {
+                transform: 'translate(0, 0) scale(1)',
+              },
+              '33%': {
+                transform: 'translate(30px, -50px) scale(1.1)',
+              },
+              '66%': {
+                transform: 'translate(-20px, 20px) scale(0.9)',
+              },
+            },
+          }}
+        />
+        {/* Blob 2 - ピンク */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            right: '-20%',
+            width: '45vmax',
+            height: '45vmax',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, rgba(244, 114, 182, 0.35) 0%, rgba(251, 113, 133, 0.35) 100%)',
+            filter: 'blur(60px)',
+            animation: 'blob2 25s ease-in-out infinite',
+            '@keyframes blob2': {
+              '0%, 100%': {
+                transform: 'translate(0, 0) scale(1)',
+              },
+              '33%': {
+                transform: 'translate(-40px, 30px) scale(1.15)',
+              },
+              '66%': {
+                transform: 'translate(20px, -40px) scale(0.85)',
+              },
+            },
+          }}
+        />
+        {/* Blob 3 - 青緑 */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: '-10%',
+            left: '30%',
+            width: '40vmax',
+            height: '40vmax',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, rgba(52, 211, 153, 0.3) 0%, rgba(59, 130, 246, 0.3) 100%)',
+            filter: 'blur(60px)',
+            animation: 'blob3 22s ease-in-out infinite',
+            '@keyframes blob3': {
+              '0%, 100%': {
+                transform: 'translate(0, 0) scale(1)',
+              },
+              '33%': {
+                transform: 'translate(50px, -30px) scale(0.95)',
+              },
+              '66%': {
+                transform: 'translate(-30px, 50px) scale(1.05)',
+              },
+            },
+          }}
+        />
+      </Box>
+
+      <Container maxWidth="sm" sx={{ pb: 6, pt: 2, position: 'relative', zIndex: 1 }}>
       {/* ヘッダー */}
       <Fade in timeout={800}>
         <Box sx={{ mt: 4, mb: 4, textAlign: 'center' }}>
@@ -392,16 +495,18 @@ export default function Home() {
       {activeRoom && (
         <Slide direction="down" in timeout={500}>
           <Paper
-            elevation={3}
+            elevation={0}
             sx={{
               p: 3,
               mb: 3,
               background: activeRoom.status === 'finished'
-                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%)'
-                : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)',
+                ? 'rgba(16, 185, 129, 0.2)'
+                : 'rgba(245, 158, 11, 0.2)',
+              backdropFilter: 'blur(16px)',
               border: activeRoom.status === 'finished'
                 ? '2px solid rgba(16, 185, 129, 0.4)'
                 : '2px solid rgba(245, 158, 11, 0.4)',
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -438,11 +543,18 @@ export default function Home() {
       ) : pastRooms.length > 0 && (
         <Fade in timeout={600}>
           <Paper
-            elevation={2}
+            elevation={0}
             sx={{
               p: 3,
               mb: 3,
-              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+              background: (theme) => theme.palette.mode === 'dark'
+                ? 'rgba(59, 130, 246, 0.15)'
+                : 'rgba(255, 255, 255, 0.6)',
+              backdropFilter: 'blur(16px)',
+              border: (theme) => theme.palette.mode === 'dark'
+                ? '1px solid rgba(59, 130, 246, 0.3)'
+                : '1px solid rgba(255, 255, 255, 0.5)',
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -493,7 +605,21 @@ export default function Home() {
 
       {/* メインフォーム */}
       <Fade in timeout={700}>
-        <Paper elevation={3} sx={{ p: 3, borderRadius: 3 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            borderRadius: 3,
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'rgba(30, 30, 50, 0.7)'
+              : 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(20px)',
+            border: (theme) => theme.palette.mode === 'dark'
+              ? '1px solid rgba(255, 255, 255, 0.1)'
+              : '1px solid rgba(255, 255, 255, 0.5)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          }}
+        >
           <TextField
             fullWidth
             label="あなたの名前"
@@ -765,5 +891,6 @@ export default function Home() {
         </Paper>
       </Fade>
     </Container>
+    </Box>
   )
 }
