@@ -38,6 +38,7 @@ import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { aggregateAnswers, type AnswerGroup } from '@/lib/utils/aggregation'
 import type { Room, Question, Player, Answer } from '@/types/database'
+import { useShakeEffect } from '@/components/PopEffect'
 
 interface QuestionResult {
   id: string
@@ -73,6 +74,8 @@ export default function ResultPage() {
   const [showRankAnimation, setShowRankAnimation] = useState(false)
   const [showMajorityReveal, setShowMajorityReveal] = useState(false)
   const [majorityCountAnimation, setMajorityCountAnimation] = useState(0)
+  const { shake, shakeStyle, isShaking } = useShakeEffect()
+  const [currentPlayerIncorrect, setCurrentPlayerIncorrect] = useState(false)
 
   useEffect(() => {
     const initializeResult = async () => {
@@ -328,6 +331,12 @@ export default function ResultPage() {
         setAnswers(answersData)
         setCurrentPlayerCorrect(currentPlayerGotItRight)
 
+        // 不正解チェック（予想したが外れた場合）
+        const myAnswer = answersData.find(a => a.player_id === pid)
+        if (myAnswer && myAnswer.prediction && !currentPlayerGotItRight) {
+          setCurrentPlayerIncorrect(true)
+        }
+
         setResult({
           id: questionData.id,
           questionText: questionData.question_text,
@@ -347,20 +356,40 @@ export default function ResultPage() {
     initializeResult()
   }, [roomId])
 
+  // 正解時の派手な紙吹雪
   useEffect(() => {
     if (currentPlayerCorrect && !isLoading && typeof window !== 'undefined') {
       import('canvas-confetti').then((confettiModule) => {
         const confetti = confettiModule.default
 
+        // 初回の大爆発
         confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 }
+          particleCount: 150,
+          spread: 100,
+          origin: { y: 0.6 },
+          colors: ['#667eea', '#764ba2', '#f59e0b', '#10b981', '#ec4899'],
         })
 
-        const duration = 3000
+        // 左右から花火
+        confetti({
+          particleCount: 80,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+          colors: ['#667eea', '#764ba2'],
+        })
+        confetti({
+          particleCount: 80,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+          colors: ['#f59e0b', '#fbbf24'],
+        })
+
+        // 継続的な紙吹雪
+        const duration = 4000
         const animationEnd = Date.now() + duration
-        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 }
+        const defaults = { startVelocity: 35, spread: 360, ticks: 80, zIndex: 9999, colors: ['#667eea', '#764ba2', '#f59e0b', '#10b981', '#ec4899', '#fbbf24'] }
 
         function randomInRange(min: number, max: number) {
           return Math.random() * (max - min) + min
@@ -373,7 +402,7 @@ export default function ResultPage() {
             return clearInterval(interval)
           }
 
-          const particleCount = 50 * (timeLeft / duration)
+          const particleCount = 60 * (timeLeft / duration)
 
           confetti({
             ...defaults,
@@ -385,12 +414,34 @@ export default function ResultPage() {
             particleCount,
             origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
           })
-        }, 250)
+        }, 200)
+
+        // スター型の紙吹雪を追加
+        setTimeout(() => {
+          confetti({
+            particleCount: 30,
+            spread: 60,
+            origin: { y: 0.5, x: 0.5 },
+            shapes: ['star'],
+            colors: ['#fbbf24', '#f59e0b'],
+            scalar: 1.5,
+          })
+        }, 500)
 
         return () => clearInterval(interval)
       })
     }
   }, [currentPlayerCorrect, isLoading])
+
+  // 不正解時の画面揺れ
+  useEffect(() => {
+    if (currentPlayerIncorrect && !isLoading) {
+      // 少し遅延させて揺らす
+      setTimeout(() => {
+        shake()
+      }, 800)
+    }
+  }, [currentPlayerIncorrect, isLoading, shake])
 
   // バーグラフのアニメーション
   useEffect(() => {
@@ -609,7 +660,7 @@ export default function ResultPage() {
   const isLastQuestion = room.current_question_index >= totalQuestions - 1
 
   return (
-    <Container maxWidth="md" sx={{ pb: 4, pt: 2 }}>
+    <Container maxWidth="md" sx={{ pb: 4, pt: 2, ...shakeStyle }}>
       {/* ヘッダー */}
       <Fade in timeout={500}>
         <Box sx={{ mb: 3, textAlign: 'center' }}>

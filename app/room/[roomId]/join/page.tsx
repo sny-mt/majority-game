@@ -20,6 +20,7 @@ import GroupsIcon from '@mui/icons-material/Groups'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateNickname } from '@/lib/utils/validation'
+import { AnimatedButton } from '@/components/AnimatedButton'
 
 export default function JoinPage() {
   const params = useParams()
@@ -276,7 +277,7 @@ export default function JoinPage() {
               }}
             />
 
-            <Button
+            <AnimatedButton
               fullWidth
               variant="contained"
               size="large"
@@ -295,7 +296,7 @@ export default function JoinPage() {
               }}
             >
               {isJoining ? '参加中...' : '参加する'}
-            </Button>
+            </AnimatedButton>
 
             {error && (
               <Fade in>

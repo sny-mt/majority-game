@@ -48,6 +48,7 @@ import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateComment } from '@/lib/utils/validation'
 import type { Room, Question } from '@/types/database'
+import { AnimatedButton } from '@/components/AnimatedButton'
 
 // ローディングコンポーネント
 function AnswerPageLoading() {
@@ -420,6 +421,19 @@ function AnswerPageContent() {
         })
 
       if (error) throw error
+
+      // 送信成功時のポップエフェクト
+      if (typeof window !== 'undefined') {
+        import('canvas-confetti').then((confettiModule) => {
+          const confetti = confettiModule.default
+          confetti({
+            particleCount: 50,
+            spread: 60,
+            origin: { y: 0.7 },
+            colors: ['#667eea', '#764ba2', '#10b981'],
+          })
+        })
+      }
 
       setHasAnswered(true)
       setMyAnswer(answer)
@@ -959,7 +973,7 @@ function AnswerPageContent() {
                 />
               </Box>
 
-              <Button
+              <AnimatedButton
                 fullWidth
                 variant="contained"
                 size="large"
@@ -969,7 +983,7 @@ function AnswerPageContent() {
                 sx={{ py: 2 }}
               >
                 {isLateAnswer ? '参考記録として回答' : '回答する'}
-              </Button>
+              </AnimatedButton>
             </>
           )}
         </Paper>
@@ -1205,13 +1219,13 @@ function AnswerPageContent() {
           >
             戻る
           </Button>
-          <Button
+          <AnimatedButton
             onClick={handleConfirmSubmit}
             variant="contained"
             startIcon={<SendIcon />}
           >
             送信する
-          </Button>
+          </AnimatedButton>
         </DialogActions>
       </Dialog>
     </>
