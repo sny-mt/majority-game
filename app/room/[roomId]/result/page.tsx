@@ -461,15 +461,17 @@ export default function ResultPage() {
     }
   }, [currentPlayerCorrect, isLoading])
 
-  // 不正解時の画面揺れ
+  // 不正解時の画面揺れ（一度だけ実行）
   useEffect(() => {
     if (currentPlayerIncorrect && !isLoading) {
       // 少し遅延させて揺らす
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         shake()
       }, 800)
+      return () => clearTimeout(timer)
     }
-  }, [currentPlayerIncorrect, isLoading, shake])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlayerIncorrect, isLoading])
 
   // バーグラフのアニメーション
   useEffect(() => {

@@ -100,15 +100,16 @@ export function useShakeEffect() {
 
   const shake = () => {
     setIsShaking(true)
-    setTimeout(() => setIsShaking(false), 1000)
+    setTimeout(() => setIsShaking(false), 400)
   }
 
   const shakeStyle = isShaking ? {
-    animation: 'shake 0.5s ease-in-out 2',
+    animation: 'shake 0.4s ease-in-out 1',
     '@keyframes shake': {
       '0%, 100%': { transform: 'translateX(0)' },
-      '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-5px)' },
-      '20%, 40%, 60%, 80%': { transform: 'translateX(5px)' },
+      '25%': { transform: 'translateX(-4px)' },
+      '50%': { transform: 'translateX(4px)' },
+      '75%': { transform: 'translateX(-4px)' },
     },
   } : {}
 
