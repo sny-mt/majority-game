@@ -765,11 +765,11 @@ export default function SummaryPage() {
                   </Box>
 
                   {/* 回答サマリー */}
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, pl: 0.5 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pl: 0.5 }}>
                     {/* あなたの回答 */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 70 }}>
-                        あなた:
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                        あなた
                       </Typography>
                       {myAnswer ? (
                         <Chip
@@ -798,73 +798,76 @@ export default function SummaryPage() {
                       )}
                     </Box>
 
-                    {/* 多数派 */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 70 }}>
-                        多数派:
-                      </Typography>
-                      {majorityGroups.length > 0 ? (
-                        majorityGroups.map((group, idx) => (
-                          <Chip
-                            key={idx}
-                            label={
-                              group.answer === 'A' ? `${summary.choiceA}（A） ${group.count}人` :
-                              group.answer === 'B' ? `${summary.choiceB}（B） ${group.count}人` :
-                              `${group.answer} ${group.count}人`
-                            }
-                            size="small"
-                            sx={{
-                              height: 'auto',
-                              py: 0.25,
-                              fontSize: '0.75rem',
-                              background: 'rgba(16, 185, 129, 0.15)',
-                              color: '#059669',
-                              fontWeight: 600,
-                              '& .MuiChip-label': {
-                                whiteSpace: 'normal',
-                              },
-                            }}
-                          />
-                        ))
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          -
+                    {/* 多数派・その他を横並びに */}
+                    <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                      {/* 多数派 */}
+                      <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                          多数派
                         </Typography>
-                      )}
-                    </Box>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {majorityGroups.length > 0 ? (
+                            majorityGroups.map((group, idx) => (
+                              <Chip
+                                key={idx}
+                                label={
+                                  group.answer === 'A' ? `${summary.choiceA}（A） ${group.count}人` :
+                                  group.answer === 'B' ? `${summary.choiceB}（B） ${group.count}人` :
+                                  `${group.answer} ${group.count}人`
+                                }
+                                size="small"
+                                sx={{
+                                  height: 'auto',
+                                  py: 0.25,
+                                  fontSize: '0.75rem',
+                                  background: 'rgba(16, 185, 129, 0.15)',
+                                  color: '#059669',
+                                  fontWeight: 600,
+                                  '& .MuiChip-label': {
+                                    whiteSpace: 'normal',
+                                  },
+                                }}
+                              />
+                            ))
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              -
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
 
-                    {/* その他 */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 70 }}>
-                        その他:
-                      </Typography>
-                      {minorityGroups.length > 0 ? (
-                        minorityGroups.map((group, idx) => (
-                          <Chip
-                            key={idx}
-                            label={
-                              group.answer === 'A' ? `${summary.choiceA}（A） ${group.count}人` :
-                              group.answer === 'B' ? `${summary.choiceB}（B） ${group.count}人` :
-                              `${group.answer} ${group.count}人`
-                            }
-                            size="small"
-                            sx={{
-                              height: 'auto',
-                              py: 0.25,
-                              fontSize: '0.75rem',
-                              background: 'rgba(107, 114, 128, 0.1)',
-                              color: '#6b7280',
-                              fontWeight: 500,
-                              '& .MuiChip-label': {
-                                whiteSpace: 'normal',
-                              },
-                            }}
-                          />
-                        ))
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          なし
-                        </Typography>
+                      {/* その他 */}
+                      {minorityGroups.length > 0 && (
+                        <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                            その他
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {minorityGroups.map((group, idx) => (
+                              <Chip
+                                key={idx}
+                                label={
+                                  group.answer === 'A' ? `${summary.choiceA}（A） ${group.count}人` :
+                                  group.answer === 'B' ? `${summary.choiceB}（B） ${group.count}人` :
+                                  `${group.answer} ${group.count}人`
+                                }
+                                size="small"
+                                sx={{
+                                  height: 'auto',
+                                  py: 0.25,
+                                  fontSize: '0.75rem',
+                                  background: 'rgba(107, 114, 128, 0.1)',
+                                  color: '#6b7280',
+                                  fontWeight: 500,
+                                  '& .MuiChip-label': {
+                                    whiteSpace: 'normal',
+                                  },
+                                }}
+                              />
+                            ))}
+                          </Box>
+                        </Box>
                       )}
                     </Box>
                   </Box>
