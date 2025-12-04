@@ -709,13 +709,14 @@ export default function Home() {
                   sx={{ mb: 2 }}
                 />
 
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   <TextField
                     fullWidth
                     label="選択肢 A"
                     value={question.choiceA}
                     onChange={(e) => updateQuestion(index, 'choiceA', e.target.value)}
                     placeholder="例：春"
+                    size="small"
                   />
                   <TextField
                     fullWidth
@@ -723,6 +724,7 @@ export default function Home() {
                     value={question.choiceB}
                     onChange={(e) => updateQuestion(index, 'choiceB', e.target.value)}
                     placeholder="例：秋"
+                    size="small"
                   />
                 </Box>
               </Box>
