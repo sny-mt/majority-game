@@ -566,7 +566,7 @@ export default function Home() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               タップして質問を再利用
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
               {pastRooms.map((room, index) => (
                 <Grow in timeout={300 + index * 100} key={room.id}>
                   <Card
@@ -599,6 +599,15 @@ export default function Home() {
                 </Grow>
               ))}
             </Box>
+            <Button
+              fullWidth
+              variant="text"
+              startIcon={<HistoryIcon />}
+              onClick={() => router.push('/history')}
+              sx={{ color: 'text.secondary' }}
+            >
+              過去のルームをすべて見る
+            </Button>
           </Paper>
         </Fade>
       )}
