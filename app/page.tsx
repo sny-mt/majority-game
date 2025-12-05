@@ -27,6 +27,8 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import GroupsIcon from '@mui/icons-material/Groups'
 import QrCodeIcon from '@mui/icons-material/QrCode'
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
+import PersonIcon from '@mui/icons-material/Person'
 import { QRCodeCanvas } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
@@ -51,6 +53,16 @@ interface ActiveRoom {
   status: string
 }
 
+interface JoinedRoom {
+  id: string
+  room_name: string
+  created_at: string
+  myNickname: string
+  myScore: number
+  myRank: number
+  playerCount: number
+}
+
 export default function Home() {
   const router = useRouter()
   const [roomName, setRoomName] = useState('')
@@ -66,6 +78,8 @@ export default function Home() {
   const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null)
   const [copied, setCopied] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
+  const [joinedRooms, setJoinedRooms] = useState<JoinedRoom[]>([])
+  const [isLoadingJoinedRooms, setIsLoadingJoinedRooms] = useState(true)
 
   useEffect(() => {
     const loadPastRooms = async () => {
@@ -128,7 +142,92 @@ export default function Home() {
       }
     }
 
+    const loadJoinedRooms = async () => {
+      try {
+        const playerId = getOrCreatePlayerId()
+        if (!playerId) {
+          setIsLoadingJoinedRooms(false)
+          return
+        }
+
+        // 自分が参加したルーム情報を取得
+        const { data: myPlayerData, error: playerError } = await supabase
+          .from('players')
+          .select('room_id, nickname, score')
+          .eq('id', playerId)
+
+        if (playerError) throw playerError
+
+        if (!myPlayerData || myPlayerData.length === 0) {
+          setIsLoadingJoinedRooms(false)
+          return
+        }
+
+        // 参加したルームIDのリスト
+        const myRoomIds = myPlayerData.map(p => p.room_id)
+        const myRoomDataMap = new Map(myPlayerData.map(p => [p.room_id, { nickname: p.nickname, score: p.score }]))
+
+        // 終了したルームのみ取得
+        const { data: roomsData, error: roomsError } = await supabase
+          .from('rooms')
+          .select('*')
+          .in('id', myRoomIds)
+          .eq('status', 'finished')
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        if (roomsError) throw roomsError
+
+        if (!roomsData || roomsData.length === 0) {
+          setIsLoadingJoinedRooms(false)
+          return
+        }
+
+        // 各ルームの詳細を取得
+        const roomsWithDetails = await Promise.all(
+          roomsData.map(async (room) => {
+            // 全プレイヤーを取得して順位計算
+            const { data: allPlayers } = await supabase
+              .from('players')
+              .select('id, nickname, score')
+              .eq('room_id', room.id)
+              .order('score', { ascending: false })
+
+            const myData = myRoomDataMap.get(room.id)
+
+            // 自分の順位を計算
+            let myRank = 0
+            if (allPlayers && myData) {
+              for (let i = 0; i < allPlayers.length; i++) {
+                if (allPlayers[i].score === myData.score) {
+                  myRank = i + 1
+                  break
+                }
+              }
+            }
+
+            return {
+              id: room.id,
+              room_name: room.room_name,
+              created_at: room.created_at,
+              myNickname: myData?.nickname || '',
+              myScore: myData?.score || 0,
+              myRank,
+              playerCount: allPlayers?.length || 0,
+            }
+          })
+        )
+
+        setJoinedRooms(roomsWithDetails)
+        setIsLoadingJoinedRooms(false)
+      } catch (err) {
+        console.error('Error loading joined rooms:', err)
+        setIsLoadingJoinedRooms(false)
+      }
+    }
+
     loadPastRooms()
+    loadJoinedRooms()
   }, [])
 
   // QRコードをデータURLに変換（img要素で表示するため）
@@ -607,6 +706,104 @@ export default function Home() {
               sx={{ color: 'text.secondary' }}
             >
               過去のルームをすべて見る
+            </Button>
+          </Paper>
+        </Fade>
+      )}
+
+      {/* 過去に参加したルーム */}
+      {isLoadingJoinedRooms ? (
+        <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+          <Skeleton variant="text" width={180} height={32} sx={{ mb: 2 }} />
+          <Skeleton variant="rectangular" height={70} sx={{ borderRadius: 2, mb: 1 }} />
+          <Skeleton variant="rectangular" height={70} sx={{ borderRadius: 2 }} />
+        </Paper>
+      ) : joinedRooms.length > 0 && (
+        <Fade in timeout={650}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              mb: 3,
+              background: (theme) => theme.palette.mode === 'dark'
+                ? 'rgba(236, 72, 153, 0.15)'
+                : 'rgba(236, 72, 153, 0.08)',
+              backdropFilter: 'blur(16px)',
+              border: (theme) => theme.palette.mode === 'dark'
+                ? '1px solid rgba(236, 72, 153, 0.3)'
+                : '1px solid rgba(236, 72, 153, 0.2)',
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <PersonIcon sx={{ mr: 1, color: '#ec4899' }} />
+              <Typography variant="h6" fontWeight="bold">
+                過去に参加したルーム
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              タップして結果を確認
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+              {joinedRooms.map((room, index) => (
+                <Grow in timeout={300 + index * 100} key={room.id}>
+                  <Card
+                    sx={{
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        transform: 'translateX(8px)',
+                      },
+                      '&:active': {
+                        transform: 'scale(0.98)',
+                      },
+                    }}
+                    onClick={() => router.push(`/room/${room.id}/summary`)}
+                  >
+                    <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="body1" fontWeight="600">
+                          {room.room_name}
+                        </Typography>
+                        {room.myRank === 1 ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: '#f59e0b' }}>
+                            <EmojiEventsIcon sx={{ fontSize: 18 }} />
+                            <Typography variant="body2" fontWeight="bold">
+                              優勝！
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            {room.myRank}位 / {room.playerCount}人
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {room.myNickname}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">·</Typography>
+                        <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600 }}>
+                          {room.myScore}pt
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">·</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(room.created_at).toLocaleDateString('ja-JP')}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grow>
+              ))}
+            </Box>
+            <Button
+              fullWidth
+              variant="text"
+              startIcon={<HistoryIcon />}
+              onClick={() => router.push('/history')}
+              sx={{ color: '#ec4899' }}
+            >
+              すべての履歴を見る
             </Button>
           </Paper>
         </Fade>
