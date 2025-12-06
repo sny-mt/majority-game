@@ -36,7 +36,7 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import { QRCodeCanvas } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
-import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { getOrCreatePlayerId, generateRoomPlayerId } from '@/lib/utils/player'
 import { HowToPlayDialog } from '@/components/HowToPlayDialog'
 import type { Room, Player } from '@/types/database'
 
@@ -92,8 +92,9 @@ export default function WaitingPage() {
   useEffect(() => {
     const initialize = async () => {
       try {
-        const pid = getOrCreatePlayerId()
-        setPlayerId(pid)
+        const deviceId = getOrCreatePlayerId()
+        const roomPlayerId = generateRoomPlayerId(roomId)
+        setPlayerId(roomPlayerId)
 
         // ルーム情報を取得
         const { data: roomData, error: roomError } = await supabase
@@ -104,7 +105,8 @@ export default function WaitingPage() {
 
         if (roomError) throw roomError
         setRoom(roomData)
-        setIsHost(roomData.host_player_id === pid)
+        // ホスト判定はデバイスIDで行う（ルーム作成時はデバイスIDで保存されている）
+        setIsHost(roomData.host_player_id === deviceId || roomData.host_player_id === roomPlayerId)
 
         // 既にゲームが開始されている場合はリダイレクト
         if (roomData.status === 'answering') {
@@ -230,8 +232,10 @@ export default function WaitingPage() {
           const updatedRoom = payload.new as Room
           setRoom(updatedRoom)
 
-          // ホストの変更を反映
-          setIsHost(updatedRoom.host_player_id === playerId)
+          // ホストの変更を反映（ルーム固有IDまたはデバイスIDで比較）
+          const deviceId = getOrCreatePlayerId()
+          const roomPlayerId = generateRoomPlayerId(roomId)
+          setIsHost(updatedRoom.host_player_id === deviceId || updatedRoom.host_player_id === roomPlayerId)
 
           if (updatedRoom.status === 'answering') {
             router.push(`/room/${roomId}/answer`)
