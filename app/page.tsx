@@ -292,7 +292,7 @@ export default function Home() {
 
     try {
       // デバイスIDを取得または生成（ルームの所有者識別用）
-      const deviceId = getOrCreatePlayerId()
+      const hostPlayerId = getOrCreatePlayerId()
 
       // 主催者のニックネームをバリデーションとサニタイズ
       const sanitizedNickname = sanitizeInput(hostNickname, 50)
