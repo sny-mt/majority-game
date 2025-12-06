@@ -41,6 +41,18 @@ export interface Answer {
   created_at: string
 }
 
+export interface Reaction {
+  id: string
+  answer_id: string
+  player_id: string
+  reaction: string // 絵文字: 😲, 🎉, 😭, 👍, 😂
+  created_at: string
+}
+
+// 利用可能なリアクション絵文字
+export const REACTION_EMOJIS = ['👍', '😂', '😲', '🎉', '😭'] as const
+export type ReactionEmoji = typeof REACTION_EMOJIS[number]
+
 // Supabase型定義
 export interface Database {
   public: {
@@ -75,6 +87,14 @@ export interface Database {
           created_at?: string
         }
         Update: Partial<Omit<Answer, 'id'>>
+      }
+      reactions: {
+        Row: Reaction
+        Insert: Omit<Reaction, 'id' | 'created_at'> & {
+          id?: string
+          created_at?: string
+        }
+        Update: Partial<Omit<Reaction, 'id'>>
       }
     }
   }

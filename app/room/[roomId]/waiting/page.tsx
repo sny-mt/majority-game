@@ -13,7 +13,16 @@ import {
   Grow,
   Skeleton,
   Avatar,
-  Collapse
+  Collapse,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  ListItemButton
 } from '@mui/material'
 import GroupsIcon from '@mui/icons-material/Groups'
 import PersonIcon from '@mui/icons-material/Person'
@@ -24,6 +33,7 @@ import QrCodeIcon from '@mui/icons-material/QrCode'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import { QRCodeCanvas } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
 import { getOrCreatePlayerId } from '@/lib/utils/player'
@@ -46,6 +56,8 @@ export default function WaitingPage() {
   const [showAllPlayers, setShowAllPlayers] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [showHowToPlay, setShowHowToPlay] = useState(false)
+  const [showTransferDialog, setShowTransferDialog] = useState(false)
+  const [isTransferring, setIsTransferring] = useState(false)
 
   const INITIAL_DISPLAY_COUNT = 12 // 初期表示人数
 
@@ -218,6 +230,9 @@ export default function WaitingPage() {
           const updatedRoom = payload.new as Room
           setRoom(updatedRoom)
 
+          // ホストの変更を反映
+          setIsHost(updatedRoom.host_player_id === playerId)
+
           if (updatedRoom.status === 'answering') {
             router.push(`/room/${roomId}/answer`)
           }
@@ -271,6 +286,52 @@ export default function WaitingPage() {
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
+    }
+  }
+
+  // ホスト移譲
+  const handleTransferHost = async (newHostId: string) => {
+    if (!isHost || isTransferring) return
+    setIsTransferring(true)
+
+    try {
+      // 新しいホストのプレイヤーIDを取得（device_idではなくplayer id）
+      const newHost = players.find(p => p.id === newHostId)
+      if (!newHost) throw new Error('プレイヤーが見つかりません')
+
+      // roomsテーブルのhost_player_idを更新
+      // 注意: host_player_idはデバイスIDなので、プレイヤーのis_hostフラグで判断する
+      const { error: roomError } = await supabase
+        .from('rooms')
+        .update({ host_player_id: newHostId })
+        .eq('id', roomId)
+
+      if (roomError) throw roomError
+
+      // 現在のホストのis_hostをfalseに
+      const { error: currentHostError } = await supabase
+        .from('players')
+        .update({ is_host: false })
+        .eq('room_id', roomId)
+        .eq('is_host', true)
+
+      if (currentHostError) throw currentHostError
+
+      // 新しいホストのis_hostをtrueに
+      const { error: newHostError } = await supabase
+        .from('players')
+        .update({ is_host: true })
+        .eq('id', newHostId)
+
+      if (newHostError) throw newHostError
+
+      setShowTransferDialog(false)
+      setIsHost(false)
+    } catch (error) {
+      console.error('Error transferring host:', error)
+      alert('ホストの移譲に失敗しました')
+    } finally {
+      setIsTransferring(false)
     }
   }
 
@@ -670,9 +731,89 @@ export default function WaitingPage() {
             >
               {isStarting ? '開始中...' : 'ゲームを開始する'}
             </Button>
+
+            {/* ホスト移譲ボタン */}
+            {players.length > 1 && (
+              <Button
+                fullWidth
+                variant="outlined"
+                size="small"
+                onClick={() => setShowTransferDialog(true)}
+                startIcon={<SwapHorizIcon />}
+                sx={{
+                  mt: 2,
+                  color: 'text.secondary',
+                  borderColor: 'rgba(0, 0, 0, 0.2)',
+                  '&:hover': {
+                    borderColor: 'rgba(0, 0, 0, 0.4)',
+                    background: 'rgba(0, 0, 0, 0.04)',
+                  },
+                }}
+              >
+                ホストを別の人に移譲する
+              </Button>
+            )}
           </Paper>
         </Fade>
       )}
+
+      {/* ホスト移譲ダイアログ */}
+      <Dialog
+        open={showTransferDialog}
+        onClose={() => setShowTransferDialog(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <SwapHorizIcon color="primary" />
+            ホストを移譲
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            新しいホストを選択してください。ホストはゲームの開始や進行をコントロールできます。
+          </Typography>
+          <List sx={{ pt: 0 }}>
+            {players
+              .filter(p => p.id !== playerId)
+              .map((player) => (
+                <ListItem key={player.id} disablePadding>
+                  <ListItemButton
+                    onClick={() => handleTransferHost(player.id)}
+                    disabled={isTransferring}
+                    sx={{
+                      borderRadius: 2,
+                      mb: 1,
+                      '&:hover': {
+                        background: 'rgba(102, 126, 234, 0.1)',
+                      },
+                    }}
+                  >
+                    <ListItemAvatar>
+                      <Avatar
+                        sx={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        }}
+                      >
+                        {player.nickname.charAt(0)}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={player.nickname}
+                      secondary="タップして移譲"
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowTransferDialog(false)} disabled={isTransferring}>
+            キャンセル
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 非ホストへのメッセージ */}
       {!isHost && (

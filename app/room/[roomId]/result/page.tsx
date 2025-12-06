@@ -35,10 +35,11 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import TrendingDownIcon from '@mui/icons-material/TrendingDown'
 import RemoveIcon from '@mui/icons-material/Remove'
 import { supabase } from '@/lib/supabase'
-import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { getOrCreatePlayerId, generateRoomPlayerId } from '@/lib/utils/player'
 import { aggregateAnswers, type AnswerGroup } from '@/lib/utils/aggregation'
 import type { Room, Question, Player, Answer } from '@/types/database'
 import { useShakeEffect } from '@/components/PopEffect'
+import { ReactionButton } from '@/components/ReactionButton'
 
 interface QuestionResult {
   id: string
@@ -82,8 +83,9 @@ export default function ResultPage() {
   useEffect(() => {
     const initializeResult = async () => {
       try {
-        const pid = getOrCreatePlayerId()
-        setPlayerId(pid)
+        const deviceId = getOrCreatePlayerId()
+        const roomPlayerId = generateRoomPlayerId(roomId)
+        setPlayerId(roomPlayerId)
 
         const { data: roomData, error: roomError } = await supabase
           .from('rooms')
@@ -94,7 +96,7 @@ export default function ResultPage() {
         if (roomError) throw roomError
         setRoom(roomData)
 
-        setIsHost(roomData.host_player_id === pid)
+        setIsHost(roomData.host_player_id === deviceId)
 
         const { data: questionData, error: questionError } = await supabase
           .from('questions')
@@ -189,7 +191,7 @@ export default function ResultPage() {
           answersData.forEach((answer) => {
             // 既に計算済みの場合はスキップ
             if (answer.is_correct_prediction !== false || answer.points_earned !== 0) {
-              if (answer.player_id === pid && answer.is_correct_prediction) {
+              if (answer.player_id === roomPlayerId && answer.is_correct_prediction) {
                 currentPlayerGotItRight = true
               }
               return
@@ -238,7 +240,7 @@ export default function ResultPage() {
             answer.is_correct_prediction = isCorrect
             answer.points_earned = points
 
-            if (answer.player_id === pid) {
+            if (answer.player_id === roomPlayerId) {
               if (isCorrect) {
                 currentPlayerGotItRight = true
               }
@@ -328,7 +330,7 @@ export default function ResultPage() {
         setCurrentPlayerCorrect(currentPlayerGotItRight)
 
         // 自分の回答と予想を保存
-        const myAnswerData = answersData.find(a => a.player_id === pid)
+        const myAnswerData = answersData.find(a => a.player_id === roomPlayerId)
         if (myAnswerData) {
           // シンクロボーナスを計算（既に計算済みの場合も表示するため、常にチェック）
           const myAnswerText = myAnswerData.answer
@@ -985,6 +987,27 @@ export default function ResultPage() {
                     )
                   })}
                 </Box>
+                {/* マジョリティ回答へのリアクション */}
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+                  {(() => {
+                    const firstPlayer = players.find(p => group.players.includes(p.nickname))
+                    const answer = firstPlayer ? answers.find(a => a.player_id === firstPlayer.id) : null
+                    if (!answer) return null
+                    return (
+                      <Box sx={{
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        borderRadius: 2,
+                        px: 2,
+                        py: 1,
+                      }}>
+                        <ReactionButton
+                          answerId={answer.id}
+                          playerId={playerId}
+                        />
+                      </Box>
+                    )
+                  })()}
+                </Box>
               </Box>
             </Paper>
           </Zoom>
@@ -1250,7 +1273,7 @@ export default function ResultPage() {
                         },
                       })}
                     />
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
                       {group.players.map((playerName, idx) => {
                         const player = players.find(p => p.nickname === playerName)
                         const answer = player ? answers.find(a => a.player_id === player.id) : null
@@ -1272,6 +1295,21 @@ export default function ResultPage() {
                         )
                       })}
                     </Box>
+                    {/* リアクションボタン */}
+                    {group.players.map((playerName) => {
+                      const player = players.find(p => p.nickname === playerName)
+                      const answer = player ? answers.find(a => a.player_id === player.id) : null
+                      if (!answer) return null
+                      return (
+                        <Box key={`reaction-${answer.id}`} sx={{ mt: 1 }}>
+                          <ReactionButton
+                            answerId={answer.id}
+                            playerId={playerId}
+                            compact
+                          />
+                        </Box>
+                      )
+                    }).filter(Boolean).slice(0, 1)}
                   </Box>
                 </Slide>
               ))}
