@@ -45,7 +45,7 @@ import PersonIcon from '@mui/icons-material/Person'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import { supabase } from '@/lib/supabase'
-import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { getOrCreatePlayerId, generateRoomPlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateComment } from '@/lib/utils/validation'
 import type { Room, Question } from '@/types/database'
 import { AnimatedButton } from '@/components/AnimatedButton'
@@ -136,8 +136,9 @@ function AnswerPageContent() {
   useEffect(() => {
     const initializeRoom = async () => {
       try {
-        const pid = getOrCreatePlayerId()
-        setPlayerId(pid)
+        const deviceId = getOrCreatePlayerId()
+        const roomPlayerId = generateRoomPlayerId(roomId)
+        setPlayerId(roomPlayerId)
 
         const { data: roomData, error: roomError } = await supabase
           .from('rooms')
@@ -148,7 +149,8 @@ function AnswerPageContent() {
         if (roomError) throw roomError
         setRoom(roomData)
 
-        setIsHost(roomData.host_player_id === pid)
+        // ホスト判定はデバイスIDまたはルーム固有IDで
+        setIsHost(roomData.host_player_id === deviceId || roomData.host_player_id === roomPlayerId)
 
         const questionParam = searchParams.get('question')
         const targetQuestionIndex = questionParam ? parseInt(questionParam) : roomData.current_question_index
@@ -180,7 +182,7 @@ function AnswerPageContent() {
           .from('answers')
           .select('*')
           .eq('question_id', questionData.id)
-          .eq('player_id', pid)
+          .eq('player_id', roomPlayerId)
           .maybeSingle()
 
         if (answerData) {
