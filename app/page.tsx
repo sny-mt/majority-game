@@ -31,7 +31,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import PersonIcon from '@mui/icons-material/Person'
 import { QRCodeCanvas } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
-import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { getOrCreatePlayerId, generateRoomPlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateRoomName, validateQuestionText, validateChoice, validateNickname } from '@/lib/utils/validation'
 
 interface QuestionInput {
@@ -291,8 +291,8 @@ export default function Home() {
     setError('')
 
     try {
-      // プレイヤーIDを取得または生成
-      const hostPlayerId = getOrCreatePlayerId()
+      // デバイスIDを取得または生成（ルームの所有者識別用）
+      const deviceId = getOrCreatePlayerId()
 
       // 主催者のニックネームをバリデーションとサニタイズ
       const sanitizedNickname = sanitizeInput(hostNickname, 50)

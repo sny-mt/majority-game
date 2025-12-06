@@ -18,7 +18,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd'
 import SentimentDissatisfiedIcon from '@mui/icons-material/SentimentDissatisfied'
 import GroupsIcon from '@mui/icons-material/Groups'
 import { supabase } from '@/lib/supabase'
-import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { generateRoomPlayerId } from '@/lib/utils/player'
 import { sanitizeInput, validateNickname } from '@/lib/utils/validation'
 import { AnimatedButton } from '@/components/AnimatedButton'
 
@@ -35,24 +35,52 @@ export default function JoinPage() {
   const [roomName, setRoomName] = useState('')
 
   useEffect(() => {
-    // ルームが存在するか確認
-    const checkRoom = async () => {
-      const { data, error } = await supabase
+    // ルームが存在するか確認 & 既に参加済みかチェック
+    const checkRoomAndPlayer = async () => {
+      // ルーム情報を取得
+      const { data: roomData, error: roomError } = await supabase
         .from('rooms')
-        .select('id, room_name')
+        .select('id, room_name, status')
         .eq('id', roomId)
         .single()
 
-      if (error || !data) {
+      if (roomError || !roomData) {
         setRoomExists(false)
-      } else {
-        setRoomName(data.room_name || 'マジョリティゲーム')
+        setIsCheckingRoom(false)
+        return
       }
+
+      setRoomName(roomData.room_name || 'マジョリティゲーム')
+
+      // 既にこのルームに参加しているかチェック
+      const playerId = generateRoomPlayerId(roomId)
+      const { data: existingPlayer } = await supabase
+        .from('players')
+        .select('id')
+        .eq('id', playerId)
+        .eq('room_id', roomId)
+        .single()
+
+      if (existingPlayer) {
+        // 既に参加済みの場合は、ルームのstatusに応じて適切なページへ遷移
+        if (roomData.status === 'answering') {
+          router.push(`/room/${roomId}/answer`)
+        } else if (roomData.status === 'showing_result') {
+          router.push(`/room/${roomId}/result`)
+        } else if (roomData.status === 'finished') {
+          router.push(`/room/${roomId}/summary`)
+        } else {
+          // waiting状態の場合は待機画面へ
+          router.push(`/room/${roomId}/waiting`)
+        }
+        return
+      }
+
       setIsCheckingRoom(false)
     }
 
-    checkRoom()
-  }, [roomId])
+    checkRoomAndPlayer()
+  }, [roomId, router])
 
   const handleJoin = async () => {
     setIsJoining(true)
@@ -67,8 +95,8 @@ export default function JoinPage() {
         throw new Error(nicknameValidation.error)
       }
 
-      // プレイヤーIDを取得または生成
-      const playerId = getOrCreatePlayerId()
+      // ルーム固有のプレイヤーIDを生成
+      const playerId = generateRoomPlayerId(roomId)
 
       // ルーム情報を取得（statusを確認するため）
       const { data: roomData, error: roomError } = await supabase
@@ -82,7 +110,7 @@ export default function JoinPage() {
       // 既にこのプレイヤーがこのルームに参加しているかチェック
       const { data: existingPlayer } = await supabase
         .from('players')
-        .select('id')
+        .select('id, nickname')
         .eq('id', playerId)
         .eq('room_id', roomId)
         .single()
@@ -102,17 +130,16 @@ export default function JoinPage() {
         return
       }
 
-      // プレイヤーを登録（既存の場合は更新）
+      // 新規プレイヤーとして登録（insertのみ、upsertは使わない）
+      // 同じplayer_idが他のルームに存在していても影響しない
       const { error: playerError } = await supabase
         .from('players')
-        .upsert({
+        .insert({
           id: playerId,
           room_id: roomId,
           nickname: sanitizedNickname,
           is_host: false,
           score: 0
-        }, {
-          onConflict: 'id'
         })
 
       if (playerError) throw playerError
