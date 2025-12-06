@@ -37,7 +37,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import { supabase } from '@/lib/supabase'
-import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { getOrCreatePlayerId, generateRoomPlayerId } from '@/lib/utils/player'
 import { aggregateAnswers, type AnswerGroup } from '@/lib/utils/aggregation'
 import type { Room, Question, Player, Answer } from '@/types/database'
 
@@ -110,9 +110,9 @@ export default function SummaryPage() {
   useEffect(() => {
     const initializeSummary = async () => {
       try {
-        // プレイヤーIDを取得
-        const pid = getOrCreatePlayerId()
-        setPlayerId(pid)
+        // ルーム固有のプレイヤーIDを取得
+        const roomPlayerId = generateRoomPlayerId(roomId)
+        setPlayerId(roomPlayerId)
 
         // ルーム情報を取得
         const { data: roomData, error: roomError } = await supabase
@@ -197,12 +197,12 @@ export default function SummaryPage() {
 
         // 回答が近かった人を計算
         const calculateSimilarPlayers = () => {
-          const otherPlayers = (playersData || []).filter(p => p.id !== pid)
+          const otherPlayers = (playersData || []).filter(p => p.id !== roomPlayerId)
           const myAnswersMap = new Map<string, string>()
 
           // 自分の回答をマップに格納
           summaries.forEach(summary => {
-            const myAnswer = summary.answers.find(a => a.player_id === pid)
+            const myAnswer = summary.answers.find(a => a.player_id === roomPlayerId)
             if (myAnswer) {
               myAnswersMap.set(summary.questionId, myAnswer.answer)
             }
