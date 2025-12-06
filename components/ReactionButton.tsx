@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Box, IconButton, Tooltip, Chip, Popover } from '@mui/material'
+import { Box, IconButton, Tooltip, Chip, Popover, Snackbar, Alert } from '@mui/material'
 import AddReactionIcon from '@mui/icons-material/AddReaction'
 import { supabase } from '@/lib/supabase'
 import { REACTION_EMOJIS, type ReactionEmoji, type Reaction } from '@/types/database'
@@ -22,6 +22,7 @@ export function ReactionButton({ answerId, playerId, compact = false }: Reaction
   const [reactions, setReactions] = useState<Reaction[]>([])
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // リアクションを取得
   useEffect(() => {
@@ -78,6 +79,7 @@ export function ReactionButton({ answerId, playerId, compact = false }: Reaction
   const handleReaction = async (emoji: ReactionEmoji) => {
     if (isLoading) return
     setIsLoading(true)
+    setError(null)
 
     try {
       const existingReaction = reactions.find(
@@ -86,22 +88,43 @@ export function ReactionButton({ answerId, playerId, compact = false }: Reaction
 
       if (existingReaction) {
         // リアクションを削除
-        await supabase
+        const { error: deleteError } = await supabase
           .from('reactions')
           .delete()
           .eq('id', existingReaction.id)
+
+        if (deleteError) throw deleteError
+
+        // ローカルで即座に反映
+        setReactions(prev => prev.filter(r => r.id !== existingReaction.id))
       } else {
         // リアクションを追加
-        await supabase
+        const { data, error: insertError } = await supabase
           .from('reactions')
           .insert({
             answer_id: answerId,
             player_id: playerId,
             reaction: emoji
           })
+          .select()
+          .single()
+
+        if (insertError) throw insertError
+
+        // ローカルで即座に反映
+        if (data) {
+          setReactions(prev => [...prev, data])
+        }
       }
-    } catch (error) {
-      console.error('Error toggling reaction:', error)
+    } catch (err: unknown) {
+      console.error('Error toggling reaction:', err)
+      const errorMessage = err instanceof Error ? err.message : 'リアクションの送信に失敗しました'
+      // reactionsテーブルが存在しない場合のエラーメッセージ
+      if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+        setError('リアクション機能は準備中です')
+      } else {
+        setError(errorMessage)
+      }
     } finally {
       setIsLoading(false)
       handleClose()
@@ -122,18 +145,23 @@ export function ReactionButton({ answerId, playerId, compact = false }: Reaction
           onClick={() => handleReaction(emoji)}
           sx={{
             cursor: 'pointer',
-            fontSize: '0.85rem',
-            height: 28,
+            fontSize: '0.9rem',
+            height: 32,
+            fontWeight: 600,
             background: hasReacted
-              ? 'rgba(102, 126, 234, 0.2)'
-              : 'rgba(0, 0, 0, 0.06)',
+              ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%)'
+              : 'rgba(255, 255, 255, 0.9)',
             border: hasReacted
-              ? '1px solid rgba(102, 126, 234, 0.5)'
-              : '1px solid transparent',
+              ? '2px solid rgba(102, 126, 234, 0.6)'
+              : '2px solid rgba(0, 0, 0, 0.15)',
+            color: hasReacted ? '#5a67d8' : 'inherit',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             '&:hover': {
               background: hasReacted
-                ? 'rgba(102, 126, 234, 0.3)'
-                : 'rgba(0, 0, 0, 0.1)',
+                ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.4) 0%, rgba(118, 75, 162, 0.4) 100%)'
+                : 'rgba(255, 255, 255, 1)',
+              transform: 'scale(1.05)',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
             },
             transition: 'all 0.2s',
           }}
@@ -206,6 +234,18 @@ export function ReactionButton({ answerId, playerId, compact = false }: Reaction
           })}
         </Box>
       </Popover>
+
+      {/* エラー表示 */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={3000}
+        onClose={() => setError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }
