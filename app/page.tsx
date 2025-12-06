@@ -84,25 +84,33 @@ export default function Home() {
   useEffect(() => {
     const loadPastRooms = async () => {
       try {
-        const playerId = getOrCreatePlayerId()
+        const deviceId = getOrCreatePlayerId()
 
-        // 進行中のルームをチェック（自分が参加しているルームで、waiting/finished以外）
-        const { data: playerData } = await supabase
-          .from('players')
-          .select('room_id')
-          .eq('id', playerId)
-          .single()
+        // 進行中または終了したルームをチェック（最新のもの）
+        // 最新のルームを取得して、自分が参加しているか確認
+        const { data: recentRooms } = await supabase
+          .from('rooms')
+          .select('id, room_name, status')
+          .in('status', ['answering', 'showing_result', 'finished'])
+          .order('created_at', { ascending: false })
+          .limit(10)
 
-        if (playerData) {
-          const { data: roomData } = await supabase
-            .from('rooms')
-            .select('id, room_name, status')
-            .eq('id', playerData.room_id)
-            .single()
+        if (recentRooms && recentRooms.length > 0) {
+          // 各ルームに対して自分が参加しているかチェック
+          for (const room of recentRooms) {
+            const roomPlayerId = generateRoomPlayerId(room.id)
+            const { data: playerData } = await supabase
+              .from('players')
+              .select('id')
+              .eq('id', roomPlayerId)
+              .eq('room_id', room.id)
+              .single()
 
-          // waiting以外のルーム（進行中またはfinished）を表示
-          if (roomData && roomData.status !== 'waiting') {
-            setActiveRoom(roomData)
+            if (playerData) {
+              // 自分が参加しているルームを見つけた
+              setActiveRoom(room)
+              break
+            }
           }
         }
 
@@ -110,7 +118,7 @@ export default function Home() {
         const { data: roomsData, error: roomsError } = await supabase
           .from('rooms')
           .select('id, room_name, created_at')
-          .eq('host_player_id', playerId)
+          .eq('host_player_id', deviceId)
           .order('created_at', { ascending: false })
           .limit(5)
 
