@@ -27,7 +27,7 @@ import SearchIcon from '@mui/icons-material/Search'
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import PersonIcon from '@mui/icons-material/Person'
 import { supabase } from '@/lib/supabase'
-import { getOrCreatePlayerId } from '@/lib/utils/player'
+import { getOrCreatePlayerId, generateRoomPlayerId } from '@/lib/utils/player'
 import type { Room } from '@/types/database'
 
 interface RoomWithDetails extends Room {
@@ -48,39 +48,69 @@ export default function HistoryPage() {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const playerId = getOrCreatePlayerId()
-        if (!playerId) {
+        const deviceId = getOrCreatePlayerId()
+        if (!deviceId) {
           setRooms([])
           setIsLoading(false)
           return
         }
 
-        // 自分が参加したルームIDを取得
-        const { data: myPlayerData, error: playerError } = await supabase
-          .from('players')
-          .select('room_id, nickname, score')
-          .eq('id', playerId)
+        // 終了したルームを取得（最新50件を候補として取得）
+        const { data: finishedRooms, error: finishedRoomsError } = await supabase
+          .from('rooms')
+          .select('id')
+          .eq('status', 'finished')
+          .order('created_at', { ascending: false })
+          .limit(100)
 
-        if (playerError) throw playerError
+        if (finishedRoomsError) throw finishedRoomsError
 
-        if (!myPlayerData || myPlayerData.length === 0) {
+        if (!finishedRooms || finishedRooms.length === 0) {
+          setRooms([])
+          setIsLoading(false)
+          return
+        }
+
+        // 各ルームに対して、自分のプレイヤーIDを計算し、参加しているかチェック
+        const myJoinedRooms: Array<{ roomId: string; nickname: string; score: number }> = []
+
+        for (const room of finishedRooms) {
+          const roomPlayerId = generateRoomPlayerId(room.id)
+          const { data: playerData } = await supabase
+            .from('players')
+            .select('room_id, nickname, score')
+            .eq('id', roomPlayerId)
+            .eq('room_id', room.id)
+            .single()
+
+          if (playerData) {
+            myJoinedRooms.push({
+              roomId: playerData.room_id,
+              nickname: playerData.nickname,
+              score: playerData.score
+            })
+          }
+
+          // 50件見つかったら終了
+          if (myJoinedRooms.length >= 50) break
+        }
+
+        if (myJoinedRooms.length === 0) {
           setRooms([])
           setIsLoading(false)
           return
         }
 
         // 参加したルームIDのリスト
-        const myRoomIds = myPlayerData.map(p => p.room_id)
-        const myRoomDataMap = new Map(myPlayerData.map(p => [p.room_id, { nickname: p.nickname, score: p.score }]))
+        const myRoomIds = myJoinedRooms.map(p => p.roomId)
+        const myRoomDataMap = new Map(myJoinedRooms.map(p => [p.roomId, { nickname: p.nickname, score: p.score }]))
 
-        // 終了したルームのみ取得（自分が参加したもの）
+        // ルームの詳細情報を取得
         const { data: roomsData, error: roomsError } = await supabase
           .from('rooms')
           .select('*')
           .in('id', myRoomIds)
-          .eq('status', 'finished')
           .order('created_at', { ascending: false })
-          .limit(50)
 
         if (roomsError) throw roomsError
 
