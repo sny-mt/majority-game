@@ -320,8 +320,8 @@ export default function Home() {
     setError('')
 
     try {
-      // デバイスIDを取得または生成（ルームの所有者識別用）
-      const hostPlayerId = getOrCreatePlayerId()
+      // デバイスIDを取得（ルームの所有者識別用）
+      const deviceId = getOrCreatePlayerId()
 
       // 主催者のニックネームをバリデーションとサニタイズ
       const sanitizedNickname = sanitizeInput(hostNickname, 50)
@@ -370,19 +370,22 @@ export default function Home() {
         })
       }
 
-      // ルームを作成
+      // ルームを作成（host_player_idはデバイスIDで保存）
       const { data: room, error: roomError } = await supabase
         .from('rooms')
         .insert({
           room_name: sanitizedRoomName,
           status: 'waiting',
           current_question_index: 0,
-          host_player_id: hostPlayerId
+          host_player_id: deviceId
         })
         .select()
         .single()
 
       if (roomError) throw roomError
+
+      // ルーム固有のホストプレイヤーIDを生成
+      const hostPlayerId = generateRoomPlayerId(room.id)
 
       // 質問を作成
       const questionsData = validatedQuestions.map((q, index) => ({
